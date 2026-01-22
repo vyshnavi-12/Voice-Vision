@@ -3,115 +3,85 @@ from stt_engine import HybridSTT
 from intent_parser import IntentParser
 from tts_engine import TextToSpeech
 from wakeword import WakeWordListener
-import mock_modules as modules
+import integrate_modules as modules
 
-# --- CONFIGURATION ---
-# The app waits 15 seconds for you to speak. 
-# If you say nothing, it naturally goes back to sleep.
 SILENCE_TIMEOUT = 15  
 
 def main():
     print("\n------------------------------------------------")
-    print(" 🚀 INITIALIZING VOICE VISION (NATURAL MODE)...")
-    
+    print(" 🚀 INITIALIZING VOICE VISION...")
     try:
-        # 1. THE EAR (Wake Word)
-        print(" 👂 Loading Wake Word Engine...")
         wake_engine = WakeWordListener()
-        
-        # 2. THE EAR (Speech-to-Text)
         stt = HybridSTT()
-        
-        # 3. THE BRAIN (Intent Parser - BERT Powered)
-        print(" 🧠 Loading Semantic Brain...")
+        # The new parser handles all the complex matching logic
         parser = IntentParser(use_bert=True) 
-        
-        # 4. THE MOUTH (Text-to-Speech)
         tts = TextToSpeech()
-        
     except Exception as e:
         print(f"\n❌ CRITICAL INIT ERROR: {e}")
         return
-
     print(" ✅ SYSTEM READY.")
     print("------------------------------------------------")
 
-    # --- MAIN PROGRAM LOOP ---
     while True:
         try:
-            # =================================================
-            # STATE 1: SLEEP MODE (Standby)
-            # =================================================
             print("\n💤 SLEEPING: Waiting for 'Hello Vision'...")
             
-            # This blocks execution until the wake word is detected
             if wake_engine.listen(): 
-                print("\n✨ WAKE WORD DETECTED! (App is AWAKE)")
+                print("\n✨ WAKE WORD DETECTED!")
                 tts.speak("I am listening.", stt.current_lang_code)
-
-                # =================================================
-                # STATE 2: CONVERSATION MODE
-                # =================================================
                 last_interaction_time = time.time()
                 
                 while True:
-                    # 1. CHECK NATURAL TIMEOUT
-                    # If 15 seconds pass with no valid command, we assume interaction is over.
                     if time.time() - last_interaction_time > SILENCE_TIMEOUT:
-                        print(" ⏳ Natural silence detected (15s). Going to sleep.")
+                        print(" ⏳ Silence detected. Sleeping.")
                         tts.speak("Sleeping.", stt.current_lang_code)
-                        break # Break inner loop -> Back to State 1
+                        break 
 
-                    # 2. LISTEN
-                    print(f"\n[{stt.lang_names[stt.current_lang_code]}] Listening...")
                     audio = stt.listen()
+                    if not audio: continue 
                     
-                    # If silence, just loop back and check timer again
-                    if not audio:
-                        continue 
-
-                    # 3. TRANSCRIBE
                     user_text = stt.transcribe(audio)
                     if not user_text: continue
 
-                    # 4. IDENTIFY INTENT (The Brain)
+                    print(f" 🗣️ HEARD: '{user_text}'")
+                    last_interaction_time = time.time()
+
+                    # --- CLEAN INTENT PARSING ---
+                    # No manual lists. The AI decides everything.
                     intent = parser.parse(user_text, stt.current_lang_code)
-                    
-                    # === HUMAN-LIKE FILTER ===
-                    # If BERT says "UNKNOWN", we assume you are talking to someone else.
-                    # We do NOT say "I didn't understand". We just stay silent (like a polite human).
-                    if intent == "UNKNOWN":
-                        print(" 🤷 Unknown intent (Ignoring background conversation).")
-                        continue 
 
-                    # 5. EXECUTE VALID COMMAND
                     print(f" 🎯 ACTION: {intent}")
-                    last_interaction_time = time.time() # <--- RESET TIMER (Conversation continues)
-
                     response_text = ""
-                    if intent == "READ_TEXT":
-                        response_text = modules.run_ocr_module(stt.current_lang_code)
                     
-                    elif intent == "DESCRIBE_SCENE":
-                        response_text = modules.run_vision_module(stt.current_lang_code)
-                        
+                    # --- EXECUTION BLOCKS ---
+                    if intent == "REGISTER_FACE":
+                        # The brain knows "save cheyu" = REGISTER_FACE
+                        response_text = modules.run_registration_flow(stt, tts, user_text)
+
                     elif intent == "PEOPLE_DETECTION":
                         response_text = modules.run_people_module(stt.current_lang_code)
-                        
-                    elif intent == "EMERGENCY":
-                        response_text = "Emergency Mode Activated! Sending Alerts..." if "en" in stt.current_lang_code else "SOS Alert Sent!"
 
-                    # 6. SPEAK RESPONSE
+                    elif intent == "DESCRIBE_SCENE":
+                        response_text = modules.run_vision_module(stt.current_lang_code)
+                    
+                    elif intent == "READ_TEXT":
+                        response_text = modules.run_ocr_module(stt.current_lang_code)
+
+                    elif intent == "STOP":
+                        tts.speak("Sleeping.", stt.current_lang_code)
+                        break 
+
+                    elif intent == "EMERGENCY":
+                        response_text = "Emergency Mode! Sending SOS."
+
                     if response_text:
                         tts.speak(response_text, stt.current_lang_code)
-                    
-                    # Loop continues...
 
         except KeyboardInterrupt:
-            print("\n👋 Exiting Voice Vision...")
+            print("\n👋 Exiting...")
             break
         except Exception as e:
-            print(f"❌ ERROR IN MAIN LOOP: {e}")
+            print(f"❌ ERROR: {e}")
             break
 
 if __name__ == "__main__":
