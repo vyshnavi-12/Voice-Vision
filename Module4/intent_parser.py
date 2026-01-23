@@ -13,7 +13,7 @@ class IntentParser:
             self.use_bert = False
             return
 
-        # --- THE TRAINING BANK (NO MORE LISTS IN MAIN.PY) ---
+        # --- THE TRAINING BANK ---
         # We teach the AI by giving it examples in mixed languages.
         # It learns the "Concept", not just the keyword.
         self.intent_bank = {
@@ -21,7 +21,7 @@ class IntentParser:
                 # English
                 "register this person", "save this face", "remember him", 
                 "add to database", "save this person", "memorize this face",
-                # Telugu (Context: Saving data)
+                # Telugu 
                 "ee person ni save cheyu", "face ni register cheyu", 
                 "save cheyu", "gurthupettuko", "ee manishi evaru save cheyu",
                 # Hindi
@@ -29,7 +29,7 @@ class IntentParser:
                 "iska naam save karo"
             ],
             "PEOPLE_DETECTION": [
-                # English (Context: Identifying)
+                # English 
                 "who is this", "who is in front of me", "do you know him", 
                 "recognize this person", "do you see anyone",
                 # Telugu
@@ -40,7 +40,7 @@ class IntentParser:
                 "kaun hai ye", "pehchano"
             ],
             "DESCRIBE_SCENE": [
-                # English (Context: Objects/Surroundings)
+                # English
                 "describe the scene", "what is in front of me", 
                 "what objects are here", "look around",
                 # Telugu
@@ -53,7 +53,7 @@ class IntentParser:
                 "padho", "chaduvu", "text chadu", "bill entha"
             ],
             "EMERGENCY": [
-                # English (Context: Danger)
+                # English
                 "help me", "emergency", "i am in danger", "sos", "save my life",
                 # Telugu
                 "nannu kapadu", "apadha", "emergency", "help cheyu",
@@ -65,7 +65,7 @@ class IntentParser:
             ]
         }
 
-        # --- PRE-CALCULATE VECTORS (Fast Performance) ---
+        # --- PRE-CALCULATE VECTORS ---
         self.corpus_embeddings = {}
         for intent, phrases in self.intent_bank.items():
             # Encode all phrases for this intent into one block of math

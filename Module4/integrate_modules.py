@@ -9,8 +9,8 @@ sys.path.append(parent_dir)
 
 # --- 2. IMPORT FACE MODULE ---
 try:
-    # Uses the fixed face_recog.py (with the RGB fix)
-    import Module2.face_recog as fr
+    # Uses the fixed face_recog.py 
+    import Module2.face_recognition as fr
     FACE_MODULE_AVAILABLE = True
     print(" [Module Integration] ✅ Face Recognition System Loaded")
 except ImportError:
@@ -36,7 +36,7 @@ def run_ocr_module(lang):
     elif "hi" in lang: return "कुल बिल 500 रुपये है।"
     else: return "The total bill amount is 500 rupees."
 
-# --- 4. PEOPLE DETECTION (FACE RECOGNITION) ---
+# --- 4. FACE RECOGNITION ---
 
 def run_people_module(lang):
     """
@@ -68,7 +68,7 @@ def run_people_module(lang):
             if "hi" in lang: return "मुझे कोई नहीं दिख रहा।"
             return "I don't see anyone I know."
         else:
-            # Result is the Name (e.g., "Vaishnavi")
+            # Result is the Name 
             if "te" in lang: return f"నేను {result}ని చూస్తున్నాను."
             elif "hi" in lang: return f"मैं {result} को देख रहा हूँ।"
             else: return f"I see {result}."
@@ -89,7 +89,7 @@ def run_registration_flow(stt_engine, tts_engine, initial_text):
     lang = stt_engine.current_lang_code
     print("   [Face System] 📝 Starting Registration Flow...")
 
-    # 1. Extract Name (e.g., "Register as Rahul")
+    # 1. Extract Name 
     new_name = ""
     text_lower = initial_text.lower()
     if "as" in text_lower:
