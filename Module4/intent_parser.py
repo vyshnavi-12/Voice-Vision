@@ -5,7 +5,7 @@ class IntentParser:
     def __init__(self, use_bert=True):
         print(" 🧠 Loading Multilingual Semantic Brain...")
         try:
-            # This model supports 50+ languages including Hindi & Telugu
+            # Using the multilingual model to handle English, Telugu, and Hindi
             self.model = SentenceTransformer('paraphrase-multilingual-MiniLM-L12-v2')
             self.use_bert = True
         except Exception as e:
@@ -13,65 +13,60 @@ class IntentParser:
             self.use_bert = False
             return
 
-        # --- THE TRAINING BANK ---
-        # We teach the AI by giving it examples in mixed languages.
-        # It learns the "Concept", not just the keyword.
+        # --- THE TRAINING BANK (OPTIMIZED) ---
         self.intent_bank = {
-            "REGISTER_FACE": [
-                # English
-                "register this person", "save this face", "remember him", 
-                "add to database", "save this person", "memorize this face",
-                # Telugu 
-                "ee person ni save cheyu", "face ni register cheyu", 
-                "save cheyu", "gurthupettuko", "ee manishi evaru save cheyu",
-                # Hindi
-                "is chehre ko save karo", "yaad rakho", "register karo", 
-                "iska naam save karo"
+            "FACE_RECOGNITION": [
+                "who is this person", "who is in front of me", "recognize this face",
+                "do you know him", "tana peru enti", "evaru ithanu", "kaun hai ye"
             ],
             "PEOPLE_DETECTION": [
-                # English 
-                "who is this", "who is in front of me", "do you know him", 
-                "recognize this person", "do you see anyone",
-                # Telugu
-                "na mundhu evaru unnaru", "evaru unnaru", "tana peru enti", 
-                "na mundhu evaraina unnara",
-                # Hindi
-                "mere samne kaun hai", "kya tum isse jante ho", 
-                "kaun hai ye", "pehchano"
+                "how many people are here", "are there people around", 
+                "is anyone standing there", "evaru unnaru", "entha mandi unnaru",
+                "kitne log hain"
             ],
             "DESCRIBE_SCENE": [
-                # English
-                "describe the scene", "what is in front of me", 
-                "what objects are here", "look around",
-                # Telugu
-                "na mundhu em undhi", "scene vivarinchu", "em kanipistundi",
-                # Hindi
-                "mere samne kya hai", "kya dikh raha hai", "scene describe karo"
+                "describe the scene", "what is in front of me", "what is here",
+                "look around", "na mundhu em undhi", "scene vivarinchu",
+                "mere samne kya hai"
+            ],
+            "OBJECT_DETECTION": [
+                "what objects are here", "what is on the desk", "identify objects",
+                "what am I holding", "find items", "desk paina em unnay",
+                "mez par kya hai", "vastuvulu cheppu"
+            ],
+            "OBSTACLE_DETECTION": [
+                "is my path clear", "any obstacles", "is there anything in my way",
+                "am i going to hit something", "addankulu unnaya", "darilo emaina undha",
+                "kya rasta saaf hai"
+            ],
+            "NAVIGATION": [
+                "how do i get out", "where is the exit", "directions please",
+                "guide me to the door", "biyataki ela vellali", "dhaari chupinchu",
+                "bahar nikalne ka rasta", "rasta batao"
             ],
             "READ_TEXT": [
                 "read text", "scan document", "read the bill", "what is written",
-                "padho", "chaduvu", "text chadu", "bill entha"
+                "chaduvu", "text chadu", "padho", "kagitham chadu"
+            ],
+            "REGISTER_FACE": [
+                "register this person", "save this face", "remember him",
+                "ee manishi ni gurthu pettuko", "face save cheyu", "is chehre ko yaad rakho"
             ],
             "EMERGENCY": [
-                # English
-                "help me", "emergency", "i am in danger", "sos", "save my life",
-                # Telugu
-                "nannu kapadu", "apadha", "emergency", "help cheyu",
-                # Hindi
-                "bachao", "madad karo", "khatra hai"
+                "help me", "i am in danger", "sos", "save my life",
+                "nannu kapadu", "apadha", "emergency help", "bachao", "madad karo"
             ],
             "STOP": [
-                "stop", "exit", "sleep", "shut down", "chup raho", "aapu", "pani aipoyindi"
+                "stop", "exit", "sleep", "aapu", "pani aipoyindi", "chup"
             ]
         }
 
-        # --- PRE-CALCULATE VECTORS ---
+        # Pre-calculate vectors
         self.corpus_embeddings = {}
         for intent, phrases in self.intent_bank.items():
-            # Encode all phrases for this intent into one block of math
             self.corpus_embeddings[intent] = self.model.encode(phrases, convert_to_tensor=True)
         
-        print(" ✅ Brain Trained & Ready.")
+        print(" ✅ Brain Trained & Optimized.")
 
     def parse(self, text, lang_code="en-IN"):
         if not text or not self.use_bert: return "UNKNOWN"
@@ -83,25 +78,20 @@ class IntentParser:
         best_intent = "UNKNOWN"
         best_score = 0.0
 
-        # 2. Compare against every Intent Category
+        # 2. Compare against Intent Bank
         for intent, intent_vectors in self.corpus_embeddings.items():
-            # Find similarity with ALL examples in this category
             cosine_scores = util.cos_sim(user_embedding, intent_vectors)
-            
-            # Take the highest score from this category
             max_score_for_category = torch.max(cosine_scores).item()
 
             if max_score_for_category > best_score:
                 best_score = max_score_for_category
                 best_intent = intent
 
-        # 3. Decision & Thresholding
         print(f" 🧠 Brain Analysis: '{text}' -> {best_intent} ({best_score:.2f})")
 
-        # "Save cheyu" (Register) vs "Save me" (Emergency)
-        # The vector math handles this distinction automatically now.
-        
-        if best_score > 0.40: # 40% Confidence Threshold
+        # 3. Decision & Thresholding
+        # Increased to 0.60 to prevent wrong guesses in Telugu/noisy environments
+        if best_score > 0.60: 
             return best_intent
         
         return "UNKNOWN"

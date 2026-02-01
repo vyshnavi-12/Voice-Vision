@@ -1,70 +1,88 @@
-import google.generativeai as genai
 import cv2
-from PIL import Image
+import os
+import sys
+from google import genai
+from google.genai import types  # Helper for strictly formatted data
+from dotenv import load_dotenv
 
-# --- CONFIGURATION ---
-API_KEY = "AIzaSyAX3COkVgNTlulTlCaJqY5rBSZmP0zvYy8"
-genai.configure(api_key=API_KEY)
-model = genai.GenerativeModel('gemini-2.5-flash')
+# 1. ENVIRONMENT SETUP
+# Securely load the API key from your .env file
+load_dotenv()
+api_key = os.getenv("GEMINI_API_KEY")
+
+if not api_key:
+    print("Error: GEMINI_API_KEY not found in .env file.")
+    sys.exit()
+
+# 2. CLIENT INITIALIZATION
+# Using the 2026 'google-genai' SDK for multimodal support
+client = genai.Client(api_key=api_key)
 
 def find_object(frame, target_object):
     """
-    Asks Gemini to find a specific object in the frame and 
-    give directional guidance (Clock Face).
+    Identifies target object and provides Clock Face directional guidance.
     """
     try:
-        print(f"\n [System] Looking for: '{target_object}'...")
+        print(f"\n[System] Locating '{target_object}'...")
         
-        rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        pil_image = Image.fromarray(rgb_frame)
+        # Encode image to JPEG bytes for the API
+        success, buffer = cv2.imencode('.jpg', frame)
+        if not success: return "Capture error."
 
-        # THE NAVIGATION PROMPT
-        # We force the AI to act like a Guide Dog
-        prompt = (
-            f"I am a visually impaired person. I need to find the '{target_object}'. "
-            "Look at this image. "
-            "1. If you see it, tell me its location using 'Clock Face' directions "
-            "(e.g., 'at 12 o'clock' for straight, '3 o'clock' for right). "
-            "2. Estimate the distance in steps or meters. "
-            "3. If it is NOT there, simply say 'I do not see the {target_object}'."
-            "Keep the answer short and direct."
+        # WRAP IMAGE DATA: Ensuring the AI receives the correct 'Part' structure
+        image_part = types.Part.from_bytes(
+            data=buffer.tobytes(),
+            mime_type="image/jpeg"
         )
 
-        response = model.generate_content([prompt, pil_image])
+        # UPDATED PROMPT: Force-aligned for blind navigation safety
+        prompt = (
+            f"You are a guide assistant for a blind person. Search for the '{target_object}'. "
+            "If found: 1. Give direction using 'Clock Face' (12=straight, 3=right, 9=left). "
+            "2. Estimate distance in steps or meters. 3. If NOT found, say: 'I do not see the {target_object}'. "
+            "Keep instructions extremely brief and clear."
+        )
+
+        # Multimodal request combining text and the image part
+        response = client.models.generate_content(
+            model="gemini-2.5-flash", 
+            contents=[prompt, image_part]
+        )
         return response.text.strip()
 
     except Exception as e:
-        return f"Error: {e}"
+        return f"Navigation AI Error: {e}"
 
-# --- TEST LOOP ---
+# 3. INTERACTIVE NAVIGATION LOOP
 if __name__ == "__main__":
     cap = cv2.VideoCapture(0)
     
-    print("------------------------------------------------")
-    print(" NAVIGATION MODULE (CONSOLE MODE)               ")
-    print(" 1. Press 'N' to search for an object.          ")
-    print(" 2. Press 'Q' to quit.                          ")
-    print("------------------------------------------------")
+    print("-" * 48)
+    print(" VOICE VISION: NAVIGATION ASSISTANT             ")
+    print(" - Press 'N' to search for an object.           ")
+    print(" - Press 'Q' to quit.                           ")
+    print("-" * 48)
 
     while True:
         ret, frame = cap.read()
         if not ret: break
 
-        cv2.imshow("Navigation Assistant", frame)
+        # Show live monitor (flipped for natural mirror movement)
+        cv2.imshow("Navigation Monitor", cv2.flip(frame, 1))
         key = cv2.waitKey(1) & 0xFF
 
-        if key == ord('n'):
-            # 1. Ask user what to find
-            print("\n------------------------------------------------")
-            target = input(" [INPUT] What do you want to find? (e.g. door): ")
+        if key == ord('n') or key == ord('N'):
+            # Allow user to type the target in the console
+            print("-" * 48)
+            target = input(" [INPUT] What should I look for? (e.g., cup): ")
             
-            # 2. Find it
             if target.strip():
+                # Execute AI search
                 guidance = find_object(frame, target)
-                print(f" [AI Guide]: {guidance}")
-                print("------------------------------------------------")
+                print(f" VOICE VISION: {guidance}")
+                print("-" * 48)
         
-        elif key == ord('q'):
+        elif key == ord('q') or key == ord('Q'):
             break
 
     cap.release()

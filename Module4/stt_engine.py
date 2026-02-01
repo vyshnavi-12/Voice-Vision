@@ -2,6 +2,7 @@ import speech_recognition as sr
 from faster_whisper import WhisperModel
 import io
 import os
+import noise_filtering  
 
 # --- CONFIGURATION ---
 OFFLINE_MODEL_SIZE = "small"   
@@ -21,10 +22,8 @@ class HybridSTT:
         self.recognizer = sr.Recognizer()
         
         # --- NOISE CONTROL SETTINGS ---
-        # We turn OFF dynamic adjustment to prevent the mic from becoming "deaf" in loud rooms.
-        # Instead, we set a stable threshold based on actual room noise.
         self.recognizer.dynamic_energy_threshold = False 
-        self.recognizer.pause_threshold = 0.8  # Wait 0.8s of silence before considering command "done"
+        self.recognizer.pause_threshold = 0.8  
         
         # Default Language
         self.current_lang_code = 'en-IN' 
@@ -34,21 +33,17 @@ class HybridSTT:
         print(" 🔊 Calibrating microphone for background noise... (Please be quiet)")
         try:
             with sr.Microphone() as source:
-                # Listen to the room for 1 second to set the baseline
                 self.recognizer.adjust_for_ambient_noise(source, duration=1)
                 
-                # FORCE SENSITIVITY LIMITS
-                # If the room is super quiet, don't drop below 400 (prevents picking up breathing)
+                # Calibration limits
                 if self.recognizer.energy_threshold < 400:
                     self.recognizer.energy_threshold = 400
-                
-                # If the room is super loud, don't go above 2000 (prevents being deaf to voice)
                 if self.recognizer.energy_threshold > 2000:
                     self.recognizer.energy_threshold = 2000
                     
-            print(f" ✅ Microphone Calibrated. Noise Threshold: {self.recognizer.energy_threshold}")
+            print(f" ✅ Microphone Calibrated. Threshold: {self.recognizer.energy_threshold}")
         except Exception as e:
-            print(f" ⚠️ Calibration failed (using defaults): {e}")
+            print(f" ⚠️ Calibration failed: {e}")
             self.recognizer.energy_threshold = 500
 
         print("-------------------------------------------------------")
@@ -58,89 +53,33 @@ class HybridSTT:
         with sr.Microphone() as source:
             print(f"\n[+] Listening ({self.lang_names[self.current_lang_code]})...")
             try:
-                # phrase_time_limit=10 prevents getting stuck recording forever if noise continues
                 audio = self.recognizer.listen(source, timeout=5, phrase_time_limit=10)
                 return audio
             except sr.WaitTimeoutError:
                 return None
 
-    def process_command(self, text):
-        """
-        Checks if the text is a 'Switch Language' command.
-        """
-        text = text.lower().strip()
-        
-        # ==========================================
-        # 1. COMMAND: "SWITCH TO TELUGU"
-        # ==========================================
-        te_cmds = [
-            "switch to telugu", "change to telugu", "speak in telugu", 
-            "telugu mode", "enable telugu", "set language to telugu",
-            "తెలుగు", "మాట్లాడు", "మార్చు", "స్విచ్ టు తెలుగు", "తెలుగు మోడ్"
-        ]
-        
-        # ==========================================
-        # 2. COMMAND: "SWITCH TO HINDI"
-        # ==========================================
-        hi_cmds = [
-            "switch to hindi", "change to hindi", "speak in hindi", 
-            "hindi mode", "enable hindi", "set language to hindi",
-            "हिंदी", "हिन्दी", "स्विच टू हिंदी", "हिंदी मोड", "हिंदी में",
-            "హిందీ", "హింది", "స్విచ్ టు హిందీ", "హిందీలో"
-        ]
-        
-        # ==========================================
-        # 3. COMMAND: "SWITCH TO ENGLISH"
-        # ==========================================
-        en_cmds = [
-            "switch to english", "change to english", "speak in english", 
-            "english mode", "enable english", "set language to english",
-            "इंग्लिश", "अंग्रेजी", "स्विच टू इंग्लिश", "इंग्लिश मोड",
-            "ఇంగ్లీష్", "ఆంగ్లం", "స్విచ్ టు ఇంగ్లీష్", "ఇంగ్లీష్ మోడ్"
-        ]
-
-        # --- EXECUTION LOGIC ---
-        if any(cmd in text for cmd in te_cmds):
-            if self.current_lang_code != 'te-IN':
-                self.current_lang_code = 'te-IN'
-                print(f"   >>> 🔄 COMMAND DETECTED: Switching to TELUGU (te-IN) <<<")
-                return True 
-        
-        if any(cmd in text for cmd in hi_cmds):
-            if self.current_lang_code != 'hi-IN':
-                self.current_lang_code = 'hi-IN'
-                print(f"   >>> 🔄 COMMAND DETECTED: Switching to HINDI (hi-IN) <<<")
-                return True
-                
-        if any(cmd in text for cmd in en_cmds):
-            if self.current_lang_code != 'en-IN':
-                self.current_lang_code = 'en-IN'
-                print(f"   >>> 🔄 COMMAND DETECTED: Switching to ENGLISH (en-IN) <<<")
-                return True
-
-        return False
-
     def transcribe(self, audio):
         if audio is None: return ""
+
+        # --- NOISE FILTERING STEP ---
+        print(" ✨ Filtering audio noise...")
+        try:
+            clean_bytes = noise_filtering.clean_audio_data(audio)
+            audio = sr.AudioData(clean_bytes, 16000, 2)
+        except Exception as e:
+            print(f" ⚠️ Filter Error: {e}. Using raw audio.")
         
         # --- PHASE 1: ONLINE (Google) ---
         try:
-            # Get Raw Text
             raw_text = self.recognizer.recognize_google(audio, language=self.current_lang_code)
-            
-            # Check for command BEFORE printing
             if self.process_command(raw_text):
                 return "" 
             
             print(f"✅ ONLINE ({self.lang_names[self.current_lang_code]}): {raw_text}")
             return raw_text.lower()
 
-        except sr.UnknownValueError:
-            pass 
-        except sr.RequestError:
-            print("⚠️ Internet down. Switching to Offline...")
-        except Exception:
-            pass # Keep silent on small errors
+        except (sr.UnknownValueError, sr.RequestError):
+            pass
 
         # --- PHASE 2: OFFLINE (Whisper) ---
         if self.offline_model:
@@ -153,7 +92,7 @@ class HybridSTT:
                     wav_data, 
                     beam_size=1,
                     language=whisper_lang_hint,
-                    vad_filter=True, # Voice Activity Detection filters out silence/noise
+                    vad_filter=True, 
                     vad_parameters=dict(min_silence_duration_ms=500),
                     condition_on_previous_text=False
                 )
@@ -169,10 +108,33 @@ class HybridSTT:
 
             except Exception as e:
                 print(f"❌ Offline Error: {e}")
-                return ""
         
         return ""
 
+    def process_command(self, text):
+        text = text.lower().strip()
+        te_cmds = ["switch to telugu", "change to telugu", "తెలుగు"]
+        hi_cmds = ["switch to hindi", "change to hindi", "हिंदी"]
+        en_cmds = ["switch to english", "change to english", "english mode"]
+
+        if any(cmd in text for cmd in te_cmds):
+            if self.current_lang_code != 'te-IN':
+                self.current_lang_code = 'te-IN'
+                print(f" >>> 🔄 Switching to TELUGU")
+                return True 
+        if any(cmd in text for cmd in hi_cmds):
+            if self.current_lang_code != 'hi-IN':
+                self.current_lang_code = 'hi-IN'
+                print(f" >>> 🔄 Switching to HINDI")
+                return True
+        if any(cmd in text for cmd in en_cmds):
+            if self.current_lang_code != 'en-IN':
+                self.current_lang_code = 'en-IN'
+                print(f" >>> 🔄 Switching to ENGLISH")
+                return True
+        return False
+
+# Restoring your original test block
 if __name__ == "__main__":
     engine = HybridSTT()
     while True:
