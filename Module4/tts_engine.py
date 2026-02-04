@@ -1,78 +1,94 @@
-# Module4/tts_engine.py
-from gtts import gTTS
-import pygame
-import os
-import time
-import subprocess # <--- NEW: Allows running Windows commands directly
+from gtts import gTTS              # Online text-to-speech (Google)
+import pygame                      # Audio playback
+import os                          # File handling
+import time                        # Timing control for playback
+import subprocess                  # Run Windows system commands directly
 
 class TextToSpeech:
     def __init__(self):
-        # We don't need to init anything for the new offline method
+        # No initialization required for system-level TTS
         pass
 
     def _speak_offline_windows(self, text):
         """
-        Uses Windows PowerShell to speak. 
-        Reliable because it runs outside Python's audio system.
+        Uses Windows PowerShell Text-to-Speech.
+        Very reliable since it bypasses Python audio libraries.
         """
         print(f"   [System TTS] Speaking: '{text}'")
-        
-        # Escape quotes in text to prevent errors (e.g., "don't" -> "don''t")
+
+        # Escape problematic characters for PowerShell execution
         safe_text = text.replace("'", "''").replace('"', '')
-        
-        # The PowerShell Command to speak
-        command = f'PowerShell -Command "Add-Type –AssemblyName System.Speech; (New-Object System.Speech.Synthesis.SpeechSynthesizer).Speak(\'{safe_text}\');"'
-        
+
+        # PowerShell command using Windows Speech Synthesizer
+        command = (
+            'PowerShell -Command '
+            '"Add-Type –AssemblyName System.Speech; '
+            '(New-Object System.Speech.Synthesis.SpeechSynthesizer)'
+            f'.Speak(\'{safe_text}\');"'
+        )
+
         try:
-            # Run the command and wait for it to finish
-            # creationflags=0x08000000 hides the console window popup
-            subprocess.run(command, shell=True, creationflags=0x08000000)
+            # Run command silently (no popup console)
+            subprocess.run(
+                command,
+                shell=True,
+                creationflags=0x08000000
+            )
         except Exception as e:
             print(f" ❌ System TTS Failed: {e}")
 
     def speak(self, text, lang_code="en-IN"):
-        if not text: return
+        """
+        Speaks the given text using online TTS first,
+        then falls back to offline Windows TTS if needed.
+        """
+        if not text:
+            return
+
         print(f" 🔊 Speaking: {text}")
 
-        # --- ATTEMPT 1: ONLINE (Google TTS) ---
+        # --- ATTEMPT 1: ONLINE TTS (Google gTTS) ---
         try:
-            # Initialize Pygame Mixer ONLY when needed
+            # Initialize audio system only when required
             if not pygame.mixer.get_init():
                 pygame.mixer.init()
 
             short_lang = lang_code.split('-')[0]
             filename = "temp_voice.mp3"
-            
-            # Generate
+
+            # Generate speech audio file
             tts = gTTS(text=text, lang=short_lang, slow=False)
             tts.save(filename)
 
-            # Play
+            # Play generated audio
             pygame.mixer.music.load(filename)
             pygame.mixer.music.play()
-            
+
+            # Wait until playback finishes
             while pygame.mixer.music.get_busy():
                 time.sleep(0.1)
-                
-            # Cleanup
+
+            # Cleanup audio resources
             pygame.mixer.music.unload()
             try:
                 os.remove(filename)
-            except: pass
-            return  # Success!
+            except:
+                pass
+
+            return  # Online TTS successful
 
         except Exception as e:
             print(f" ⚠️ Online TTS Failed: {e}")
             print(" ⚡ Switching to System TTS...")
 
-        # --- ATTEMPT 2: OFFLINE (Windows System) ---
+        # --- ATTEMPT 2: OFFLINE TTS (Windows System Voice) ---
         try:
-            # 1. Release Pygame lock just in case
+            # Release pygame audio lock before system TTS
             if pygame.mixer.get_init():
                 pygame.mixer.quit()
-            
-            # 2. Use the new robust Windows method
+
+            # Speak using Windows native speech engine
             self._speak_offline_windows(text)
-            
+
         except Exception as e:
             print(f" ❌ Offline Critical Failure: {e}")
