@@ -13,6 +13,18 @@ def get_lang_msg(responses, lang_code):
 
 # --- 2. CORE MODULES (MOCK) ---
 
+def run_currency_detection(lang):
+    """
+    CURRENCY DETECTION: Identifies Indian currency notes and announces value.
+    """
+    res = {
+        'en': "Detected Indian currency note of 500 rupees.",
+        'te': "500 రూపాయల భారతీయ నోటు గుర్తించబడింది.",
+        'hi': "500 रुपये का भारतीय नोट पाया गया है।"
+    }
+    print("   [Currency] 💰 Scanning for currency...")
+    return get_lang_msg(res, lang)
+
 def run_realtime_scene_description(lang):
     """General overview of the environment."""
     res = {
@@ -88,13 +100,26 @@ def run_ocr_module(lang):
     return get_lang_msg(res, lang)
 
 def run_safety_emergency(lang):
-    """Alerts for danger like fire or falls."""
+    """
+    SAFETY & EMERGENCY: Triggered when the user asks for help.
+    Sends alert message + optional location to pre-registered emergency contacts.
+    (Mock Implementation)
+    """
+    print("   [Emergency] 🆘 Emergency command detected...")
+    time.sleep(1)
+
+    print("   [Emergency] 📍 Fetching current location (mock GPS)...")
+    time.sleep(1)
+
+    print("   [Emergency] 📲 Sending alert to registered contacts via SMS/WhatsApp...")
+    time.sleep(1)
+
     res = {
-        'en': "Alert: Smoke detected in the kitchen area!",
-        'te': "హెచ్చరిక: వంటగదిలో పొగ గుర్తించబడింది!",
-        'hi': "चेतावनी: रसोई में धुएं का पता चला है!"
+        'en': "Your emergency message with location has been sent to your registered contacts. Help is on the way.",
+        'te': "మీ అత్యవసర సందేశం మరియు మీ ప్రస్తుత స్థానం నమోదు చేసిన సంప్రదింపులకు పంపబడింది. సహాయం త్వరలో చేరుతుంది.",
+        'hi': "आपका आपातकालीन संदेश और स्थान पंजीकृत संपर्कों को भेज दिया गया है। सहायता रास्ते में है।"
     }
-    print("   [Alert] 🚨 Monitoring emergencies...")
+
     return get_lang_msg(res, lang)
 
 # --- 3. REGISTRATION FLOW (MOCK) ---
