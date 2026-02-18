@@ -1,7 +1,4 @@
-# noise_filtering.py
 import numpy as np
-import io
-import wave
 import noisereduce as nr
 
 def clean_audio_data(audio_sr_obj):

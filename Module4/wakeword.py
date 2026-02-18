@@ -1,7 +1,7 @@
 import pvporcupine              # Wake-word detection engine (offline)
 import pyaudio                 # Microphone audio streaming
 import struct                  # Convert raw audio bytes to integers
-import os                      # File existence checks
+import os                      
 
 class WakeWordListener:
     def __init__(self):
@@ -31,7 +31,7 @@ class WakeWordListener:
             self.audio_stream = self.pa.open(
                 rate=self.porcupine.sample_rate,     # Required sample rate
                 channels=1,                          # Mono audio
-                format=pyaudio.paInt16,              # 16-bit PCM
+                format=pyaudio.paInt16,              # 16-bit Pulse Code Modulation(PCM)
                 input=True,
                 frames_per_buffer=self.porcupine.frame_length
             )

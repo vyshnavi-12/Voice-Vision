@@ -1,42 +1,56 @@
 import cv2                         # Camera access and image handling
-import os                          # Environment variable access
-import sys                         # Program exit handling
+import os                          
+import sys                         
 from google import genai           # Modern Gemini client
 from google.genai import types     # Required for structured image input
-from dotenv import load_dotenv     # Load API key from .env file
+from dotenv import load_dotenv     
 
-# 1. SETUP
-load_dotenv()                      # Load environment variables
+
+# 1. ENVIRONMENT & API SETUP
+# Loads environment variables and safely retrieves
+# the Gemini API key needed for vision + language tasks.
+load_dotenv()
 api_key = os.getenv("GEMINI_API_KEY")
 
-# Ensure API key exists before continuing
+# Stop execution if API key is missing
 if not api_key:
     print("Error: GEMINI_API_KEY not found in .env file.")
     sys.exit()
 
-# Initialize Gemini Client (new SDK style)
+# 2. GEMINI CLIENT INITIALIZATION
+# Creates a Gemini client using the new SDK that
+# supports multimodal (image + text) requests.
 client = genai.Client(api_key=api_key)
+
 
 def analyze_scene(frame):
     """
-    Captures a camera frame and sends it to Gemini
-    for a natural scene description.
+    Sends a single camera frame to Gemini and returns
+    a short, blind-friendly description of the scene.
     """
     try:
         print("\n[System] Analyzing scene...")
 
-        # Encode OpenCV frame to JPEG bytes
+        # IMAGE ENCODING
+        # Converts the OpenCV frame into JPEG bytes
+        # so it can be sent to Gemini.
         success, buffer = cv2.imencode('.jpg', frame)
         if not success:
             return "Capture error."
 
-        # Wrap image bytes using Gemini's Part structure
+        # IMAGE WRAPPING FOR GEMINI
+        # Gemini expects images to be wrapped in a
+        # structured Part with MIME type information.
         image_part = types.Part.from_bytes(
             data=buffer.tobytes(),
             mime_type="image/jpeg"
         )
 
-        # Simple, blind-friendly prompt
+        # PROMPT DESIGN (SCENE DESCRIPTION)
+        # Instructs the AI to:
+        # - Focus on critical foreground information first
+        # - Keep output short and clear
+        # - Be suitable for blind navigation
         prompt = (
             "You are a mobility assistant for a blind person. "
             "Describe the scene briefly. Start with the most important thing "
@@ -44,7 +58,9 @@ def analyze_scene(frame):
             "then mention the background. Keep it to 2 short sentences."
         )
 
-        # Send prompt + image to Gemini
+        # MULTIMODAL REQUEST
+        # Sends both the text prompt and the image
+        # to Gemini and retrieves the description.
         response = client.models.generate_content(
             model="gemini-2.5-flash",
             contents=[prompt, image_part]
@@ -53,14 +69,17 @@ def analyze_scene(frame):
         return response.text.strip()
 
     except Exception as e:
-        # Handles API, encoding, or runtime errors
+        # Handles encoding, API, or runtime failures gracefully
         return f"AI Error: {e}"
 
-# --- APPLICATION ENTRY POINT ---
+# 3. APPLICATION ENTRY POINT
+# Opens the camera, displays live feed, and allows
+# the user to trigger scene description using a key.
 if __name__ == "__main__":
-    cap = cv2.VideoCapture(0)       # Open webcam
 
-    # User instructions
+    cap = cv2.VideoCapture(0)       # Open default webcam
+
+    # User guidance for interaction
     print("\n" + "="*40)
     print(" VOICE VISION: SCENE DESCRIPTION ")
     print(" 1. CLICK THE CAMERA WINDOW FIRST")
@@ -68,24 +87,29 @@ if __name__ == "__main__":
     print(" 3. Press 'Q' to Quit")
     print("="*40 + "\n")
 
+
     while True:
         ret, frame = cap.read()
         if not ret:
             break
 
-        # Mirror the feed for natural interaction
+        # LIVE CAMERA FEED
+        # Flipped horizontally for natural, mirror-like view.
         display_frame = cv2.flip(frame, 1)
         cv2.imshow("Voice Vision Feed", display_frame)
 
         key = cv2.waitKey(30) & 0xFF
 
-        # SPACE key triggers scene description
+        # SCENE DESCRIPTION TRIGGER
+        # Pressing SPACE captures the current frame
+        # and sends it to Gemini for analysis.
         if key == 32:
             description = analyze_scene(frame)
             print(f"\n[AI RESULT]: {description}")
             print("-" * 40)
 
-        # Quit application
+        # EXIT CONDITION
+        # Cleanly closes the application.
         elif key == ord('q') or key == ord('Q'):
             break
 

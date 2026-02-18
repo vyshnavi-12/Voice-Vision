@@ -1,25 +1,29 @@
-import speech_recognition as sr        # Online speech recognition (Google STT)
-from faster_whisper import WhisperModel # Offline Whisper-based STT
-import io                               # Handle audio byte streams
-import os                               # System utilities
-import noise_filtering                # Custom audio noise cleanup module
-import torch                           # GPU detection
+import speech_recognition as sr
+from faster_whisper import WhisperModel
+import io
+import os
+import noise_filtering
+import torch
 
-# --- CONFIGURATION ---
-OFFLINE_MODEL_SIZE = "small"          # Whisper model size (speed vs accuracy)
+# Configuration for offline Whisper model size
+OFFLINE_MODEL_SIZE = "small"
 
 class HybridSTT:
     def __init__(self):
+        """
+        Initializes the hybrid Speech-to-Text engine.
+        Uses online Google STT first, then falls back
+        to offline Whisper if needed.
+        """
         print("-------------------------------------------------------")
         print(f" ⏳ Loading Offline Brain ('{OFFLINE_MODEL_SIZE}')...")
 
-        # Detect device automatically
+        # Automatically choose GPU or CPU for Whisper
         device = "cuda" if torch.cuda.is_available() else "cpu"
         compute_type = "float16" if device == "cuda" else "int8"
-
         print(f" 🚀 Whisper device: {device} | compute_type: {compute_type}")
 
-        # Initialize offline Whisper model
+        # Load Whisper offline model safely
         try:
             self.offline_model = WhisperModel(
                 OFFLINE_MODEL_SIZE,
@@ -31,10 +35,8 @@ class HybridSTT:
             print(f" ❌ ERROR loading offline model: {e}")
             self.offline_model = None
 
-        # Initialize SpeechRecognition engine
+        # Initialize Google Speech Recognizer
         self.recognizer = sr.Recognizer()
-
-        # --- NOISE CONTROL SETTINGS ---
         self.recognizer.dynamic_energy_threshold = False
         self.recognizer.pause_threshold = 0.8
 
@@ -46,16 +48,17 @@ class HybridSTT:
             'hi-IN': "Hindi"
         }
 
-        # --- MICROPHONE AUTO-CALIBRATION ---
-        print(" 🔊 Skipping microphone calibration (file-based STT mode)")
+        # Fixed energy threshold for stable background noise handling
         self.recognizer.energy_threshold = 500
 
         print("-------------------------------------------------------")
-        print(f" 🎙️ SYSTEM READY. Speaking: {self.lang_names[self.current_lang_code]}")
+        print(f" 🎙️ SYSTEM READY. Current Language: {self.lang_names[self.current_lang_code]}")
+
 
     def listen(self):
         """
-        Listens to microphone input and captures spoken audio.
+        Listens to microphone input and returns raw audio.
+        Returns None if no speech is detected within timeout.
         """
         with sr.Microphone() as source:
             print(f"\n[+] Listening ({self.lang_names[self.current_lang_code]})...")
@@ -69,24 +72,17 @@ class HybridSTT:
             except sr.WaitTimeoutError:
                 return None
 
+
     def transcribe(self, audio):
         """
-        Converts audio to text using online STT first,
-        then falls back to offline Whisper if needed.
+        Converts audio input to text.
+        First attempts online recognition, then falls back
+        to offline Whisper if online fails.
         """
         if audio is None:
             return ""
 
-        # --- FILE HANDLING ADDITION ---
-        # If 'audio' is a string path, convert it to AudioData
-        if isinstance(audio, str):
-            if not os.path.exists(audio):
-                print(f" ❌ Audio file not found: {audio}")
-                return ""
-            with sr.AudioFile(audio) as source:
-                audio = self.recognizer.record(source)
-
-        # --- NOISE FILTERING STEP ---
+        # Apply noise filtering before transcription
         print(" ✨ Filtering audio noise...")
         try:
             clean_bytes = noise_filtering.clean_audio_data(audio)
@@ -94,14 +90,14 @@ class HybridSTT:
         except Exception as e:
             print(f" ⚠️ Filter Error: {e}. Using raw audio.")
 
-        # --- PHASE 1: ONLINE STT (Google) ---
+        # Attempt online STT using Google
         try:
             raw_text = self.recognizer.recognize_google(
                 audio,
                 language=self.current_lang_code
             )
 
-            # Handle language-switch commands
+            # Handle language-switch commands immediately
             if self.process_command(raw_text):
                 return ""
 
@@ -111,7 +107,7 @@ class HybridSTT:
         except (sr.UnknownValueError, sr.RequestError):
             pass
 
-        # --- PHASE 2: OFFLINE STT (Whisper) ---
+        # Fallback to offline Whisper STT if online fails
         if self.offline_model:
             print("⚡ Processing Offline...")
             try:
@@ -122,14 +118,12 @@ class HybridSTT:
                     wav_data,
                     beam_size=1,
                     language=whisper_lang_hint,
-                    vad_filter=True,
-                    vad_parameters=dict(min_silence_duration_ms=500),
-                    condition_on_previous_text=False
+                    vad_filter=True
                 )
 
                 raw_text = " ".join([segment.text for segment in segments])
 
-                # Handle language-switch commands
+                # Handle language-switch commands from Whisper output
                 if self.process_command(raw_text):
                     return ""
 
@@ -142,39 +136,62 @@ class HybridSTT:
 
         return ""
 
+
     def process_command(self, text):
         """
-        Detects spoken language-switch commands.
+        Detects language-switch commands using substring matching.
+        Commands are written in multiple scripts to allow
+        cross-language switching.
         """
-        text = text.lower().strip()
+        t = text.lower().strip()
 
-        te_cmds = ["switch to telugu", "change to telugu", "తెలుగు"]
-        hi_cmds = ["switch to hindi", "change to hindi", "हिंदी"]
-        en_cmds = ["switch to english", "change to english", "english mode"]
+        # Commands that switch system language to Telugu
+        te_cmds = [
+            "switch to telugu", "change to telugu", "telugu mode", "speak in telugu",
+            "तेलुगु में बोलो", "तेलुगु मोड लगाओ", "तेलुगु में बात करो", "तेलुगु भाषा"
+        ]
 
-        if any(cmd in text for cmd in te_cmds):
+        # Commands that switch system language to Hindi
+        hi_cmds = [
+            "switch to hindi", "change to hindi", "hindi mode", "speak in hindi",
+            "హిందీలో మాట్లాడు", "హిందీకి మార్చు", "హిందీ మోడ్", "హిందీ భాష"
+        ]
+
+        # Commands that switch system language to English
+        en_cmds = [
+            "ఇంగ్లీష్ లో మాట్లాడు", "ఇంగ్లీష్ కి మార్చు", "ఇంగ్లీష్ మోడ్", "ఆంగ్లంలో మాట్లాడు",
+            "अंग्रेजी में बोलो", "इंग्लिश मोड", "इंग्लिश में बात करो", "इंग्लिश लगाओ"
+        ]
+
+        # Perform language switching based on detected command
+        if any(cmd in t for cmd in te_cmds):
             if self.current_lang_code != 'te-IN':
                 self.current_lang_code = 'te-IN'
-                print(f" >>> 🔄 Switching to TELUGU")
+                print(" >>> 🔄 Switch Detected: TELUGU")
                 return True
 
-        if any(cmd in text for cmd in hi_cmds):
+        if any(cmd in t for cmd in hi_cmds):
             if self.current_lang_code != 'hi-IN':
                 self.current_lang_code = 'hi-IN'
-                print(f" >>> 🔄 Switching to HINDI")
+                print(" >>> 🔄 Switch Detected: HINDI")
                 return True
 
-        if any(cmd in text for cmd in en_cmds):
+        if any(cmd in t for cmd in en_cmds):
             if self.current_lang_code != 'en-IN':
                 self.current_lang_code = 'en-IN'
-                print(f" >>> 🔄 Switching to ENGLISH")
+                print(" >>> 🔄 Switch Detected: ENGLISH")
                 return True
 
         return False
 
-# --- TESTING BLOCK ---
+
 if __name__ == "__main__":
+    """
+    Simple test loop for microphone input and transcription.
+    Stops when user says 'exit' or 'stop'.
+    """
     engine = HybridSTT()
+
     while True:
         try:
             audio_input = engine.listen()

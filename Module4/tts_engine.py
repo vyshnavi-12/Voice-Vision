@@ -1,7 +1,7 @@
 from gtts import gTTS              # Online text-to-speech (Google)
 import pygame                      # Audio playback
-import os                          # File handling
-import time                        # Timing control for playback
+import os                          
+import time                        
 import subprocess                  # Run Windows system commands directly
 
 class TextToSpeech:
