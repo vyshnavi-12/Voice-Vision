@@ -199,22 +199,6 @@ class IntentParser:
                 "बचाओ", "मदद करो", "इमरजेंसी", "SOS", "खतरा", "हेल्प"
             ],
 
-            "SWITCH_LANGUAGE": [
-
-                # English
-                "switch to telugu", "change to telugu", "speak in telugu",
-                "switch to hindi", "change to hindi", "speak in hindi",
-                "switch to english", "change to english", "speak in english",
-
-                # Telugu
-                "telugu ki marchu", "hindi ki marchu", "english ki marchu",
-                "telugu lo matlaadu", "hindi lo matlaadu", "english lo matlaadu",
-
-                # Hindi
-                "telugu mein switch karo", "hindi mein switch karo",
-                "english mein bolo", "language badlo", "bhasha badlo"
-            ],
-
             "STOP": [
                 # ENGLISH
                 "stop", "exit", "sleep", "stop now", "end", "quit", "shut down", "go sleep",
@@ -247,62 +231,60 @@ class IntentParser:
         print(" ✅ Intent Brain Ready.")
 
     def parse(self, text):
-        """
-        Unified semantic intent parser.
-        Returns:
-            (intent_name, target_language or None)
-        """
-
         if not text or self.model is None:
-            return ("UNKNOWN", None)
+            return "UNKNOWN"
 
         text = text.lower().strip()
-
-        # Encode user input
-        user_embedding = self.model.encode(
-            text,
-            convert_to_tensor=True,
-            normalize_embeddings=True
-        )
+        user_embedding = self.model.encode(text, convert_to_tensor=True, normalize_embeddings=True)
 
         best_intent = "UNKNOWN"
         best_score = 0.0
+        scores = {}
 
-        # Compute similarity against each intent bank
         for intent, intent_vectors in self.corpus_embeddings.items():
             cosine_scores = util.cos_sim(user_embedding, intent_vectors)
             score = torch.max(cosine_scores).item()
-
+            scores[intent] = score
+            
             if score > best_score:
                 best_score = score
                 best_intent = intent
 
         print(f"🧠 '{text}' → {best_intent} ({best_score:.3f})")
 
-        # Prevent accidental STOP detection from short phrases
-        if best_intent == "STOP" and len(text.split()) > 2:
-            return ("UNKNOWN", None)
+        # DYNAMIC THRESHOLD: Accept if top score > 0.45 AND 10% margin
+        if best_score > 0.45 and (best_score - max(scores.values()) * 0.9) > 0.05:
+            return best_intent
 
-        # -------- Threshold Check --------
-        if best_score < 0.45:
-            return ("UNKNOWN", None)
-
-        # -------- Language Switching Logic --------
-        if best_intent == "SWITCH_LANGUAGE":
-
-            if any(word in text for word in ["telugu", "తెలుగు"]):
-                return ("SWITCH_LANGUAGE", "te")
-
-            elif any(word in text for word in ["hindi", "हिंदी"]):
-                return ("SWITCH_LANGUAGE", "hi")
-
-            elif any(word in text for word in ["english", "ఇంగ్లీష్"]):
-                return ("SWITCH_LANGUAGE", "en")
-
-            else:
-                # Switch intent detected but no clear target
-                return ("SWITCH_LANGUAGE", None)
-
-        # -------- Normal Intent --------
-        return (best_intent, None)
+        return "UNKNOWN"
+    
+    def parse_noisy(self, text):
+        """Specialized for noisy STT output"""
+        if not text or self.model is None:
+            return "UNKNOWN"
+        
+        # Clean STT garbage
+        text = re.sub(r'[^\w\s]', '', text.lower().strip())
+        if len(text.split()) < 2:  # Too short → UNKNOWN
+            return "UNKNOWN"
+        
+        # Use same logic but LOWER threshold for noisy input
+        user_embedding = self.model.encode(text, convert_to_tensor=True, normalize_embeddings=True)
+        
+        best_intent = "UNKNOWN"
+        best_score = 0.0
+        
+        for intent, intent_vectors in self.corpus_embeddings.items():
+            cosine_scores = util.cos_sim(user_embedding, intent_vectors)
+            score = torch.max(cosine_scores).item()
+            
+            if score > best_score:
+                best_score = score
+                best_intent = intent
+        
+        # Noisy threshold: Accept ANYTHING > 0.35
+        if best_score > 0.35:
+            return best_intent
+            
+        return "UNKNOWN"
 

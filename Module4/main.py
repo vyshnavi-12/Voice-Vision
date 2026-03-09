@@ -1,35 +1,28 @@
 import time
-from stt_engine import HybridSTT
+from stt_engine import WhisperSTT
 from intent_parser import IntentParser
 from tts_engine import TextToSpeech
 from wakeword import WakeWordListener
 import integrate_modules as modules
 
-# Maximum idle time (in seconds) before the assistant goes back to sleep
+# Maximum idle time before assistant sleeps
 SILENCE_TIMEOUT = 15  
 
 
 def main():
-    """
-    Main control loop for Voice Vision.
-    Handles system initialization, wake-word detection,
-    continuous listening, intent parsing, and module execution.
-    """
 
     print("\n------------------------------------------------")
     print(" 🚀 INITIALIZING VOICE VISION...")
 
-    # ---- SYSTEM INITIALIZATION ----
-    # Initialize all core subsystems:
-    # - Wake word detection
-    # - Speech-to-text (Hybrid: Online + Offline)
-    # - Intent understanding (semantic)
-    # - Text-to-speech output
     try:
         wake_engine = WakeWordListener()
-        stt = HybridSTT()
-        parser = IntentParser(use_bert=True) 
+
+        # Default language = English
+        stt = WhisperSTT(language="en")
+
+        parser = IntentParser()
         tts = TextToSpeech()
+
     except Exception as e:
         print(f"\n❌ CRITICAL INIT ERROR: {e}")
         return
@@ -37,143 +30,117 @@ def main():
     print(" ✅ SYSTEM READY.")
     print("------------------------------------------------")
 
-
-    # ---- OUTER LOOP: SLEEP MODE ----
-    # The system stays dormant until the wake word is detected.
+    # ---------------- OUTER LOOP (SLEEP MODE) ----------------
     while True:
         try:
             print("\n💤 SLEEPING: Waiting for 'Hello Vision'...")
 
-            # Block until wake word is detected
-            if wake_engine.listen(): 
-                print("\n✨ WAKE WORD DETECTED!")
-                tts.speak("I am listening.", stt.current_lang_code)
+            if wake_engine.listen():
 
-                # Track last user interaction to detect silence
+                print("\n✨ WAKE WORD DETECTED!")
+                tts.speak("I am listening.", stt.language)
+
                 last_interaction_time = time.time()
 
-
-                # ---- INNER LOOP: ACTIVE LISTENING MODE ----
-                # Continues until silence timeout or STOP intent
+                # ---------------- INNER LOOP (ACTIVE MODE) ----------------
                 while True:
 
-                    # If no interaction for too long, return to sleep
+                    # Auto sleep after silence
                     if time.time() - last_interaction_time > SILENCE_TIMEOUT:
                         print(" ⏳ Silence detected. Sleeping.")
-                        tts.speak("Sleeping.", stt.current_lang_code)
-                        break 
+                        tts.speak("Sleeping.", stt.language)
+                        break
 
-                    # Capture audio input
+                    # Listen
                     audio = stt.listen()
                     if not audio:
-                        continue 
+                        continue
 
-                    # Convert speech to text
+                    # Transcribe
                     user_text = stt.transcribe(audio)
                     if not user_text:
                         continue
 
-
-                    # ---- MANUAL LANGUAGE SWITCH GUARD ----
-                    # Backup safeguard in case STT recognizes language words
-                    # but internal switch logic fails.
-                    # This ensures language consistency before intent parsing.
-                    lower_text = user_text.lower()
-
-                    if "telugu" in lower_text or "తెలుగు" in lower_text:
-                        stt.current_lang_code = 'te-IN'
-                        tts.speak("Switching to Telugu.", 'en-IN')
-                        last_interaction_time = time.time()
-                        continue
-
-                    elif "hindi" in lower_text or "हिंदी" in lower_text:
-                        stt.current_lang_code = 'hi-IN'
-                        tts.speak("Switching to Hindi.", 'en-IN')
-                        last_interaction_time = time.time()
-                        continue
-
-                    elif "english" in lower_text or "ఇంగ్లీష్" in lower_text:
-                        stt.current_lang_code = 'en-IN'
-                        tts.speak("Switching to English.", 'en-IN')
-                        last_interaction_time = time.time()
-                        continue
-
-
-                    # Log recognized speech
                     print(f" 🗣️ HEARD: '{user_text}'")
                     last_interaction_time = time.time()
 
+                    # ---------------- INTENT PARSING ----------------
+                    intent, target_lang = parser.parse(user_text)
 
-                    # ---- INTENT UNDERSTANDING ----
-                    # Convert user text into a high-level action intent
-                    intent = parser.parse(user_text, stt.current_lang_code)
                     print(f" 🎯 ACTION: {intent}")
 
                     response_text = ""
 
+                    # ---------------- LANGUAGE SWITCH ----------------
+                    if intent == "SWITCH_LANGUAGE":
 
-                    # ---- INTENT EXECUTION DISPATCHER ----
-                    # Routes the detected intent to its corresponding module
+                        if target_lang:
+                            stt.set_language(target_lang)
+
+                            confirmations = {
+                                "en": "Language switched to English.",
+                                "te": "భాష తెలుగు కు మార్చబడింది.",
+                                "hi": "भाषा हिंदी में बदल दी गई है।"
+                            }
+
+                            tts.speak(confirmations[target_lang], target_lang)
+
+                        else:
+                            tts.speak("Please specify the language.", stt.language)
+
+                        continue
+
+                    # ---------------- NORMAL INTENT DISPATCH ----------------
                     if intent == "UNKNOWN":
-                        response_text = (
-                            "I'm sorry, I didn't quite catch that. Could you repeat?"
+                        fallback_responses = {
+                            "en": "I'm sorry, I didn't understand that. Please repeat.",
+                            "te": "క్షమించండి, నేను అర్థం చేసుకోలేకపోయాను. మళ్లీ చెప్పండి.",
+                            "hi": "माफ कीजिए, मैं समझ नहीं पाया। कृपया दोबारा कहें।"
+                        }
+
+                        response_text = fallback_responses.get(
+                            stt.language,
+                            fallback_responses["en"]
                         )
+
+                    elif intent == "CURRENCY_DETECTION":
+                        response_text = modules.run_currency_detection(stt.language)
 
                     elif intent == "FACE_RECOGNITION":
-                        response_text = modules.run_face_recognition(
-                            stt.current_lang_code
-                        )
-
-                    elif intent == "DESCRIBE_SCENE":
-                        response_text = modules.run_realtime_scene_description(
-                            stt.current_lang_code
-                        )
+                        response_text = modules.run_face_recognition(stt.language)
 
                     elif intent == "PEOPLE_DETECTION":
-                        response_text = modules.run_people_detection(
-                            stt.current_lang_code
-                        )
+                        response_text = modules.run_people_detection(stt.language)
+
+                    elif intent == "SCENE_DESCRIPTION":
+                        response_text = modules.run_realtime_scene_description(stt.language)
 
                     elif intent == "OBJECT_DETECTION":
-                        response_text = modules.run_object_detection(
-                            stt.current_lang_code
-                        )
+                        response_text = modules.run_object_detection(stt.language)
 
                     elif intent == "OBSTACLE_DETECTION":
-                        response_text = modules.run_obstacle_detection(
-                            stt.current_lang_code
-                        )
+                        response_text = modules.run_obstacle_detection(stt.language)
 
                     elif intent == "NAVIGATION":
-                        response_text = modules.run_navigation_assistance(
-                            stt.current_lang_code
-                        )
+                        response_text = modules.run_navigation_assistance(stt.language)
 
-                    elif intent == "READ_TEXT":
-                        response_text = modules.run_ocr_module(
-                            stt.current_lang_code
-                        )
+                    elif intent == "OCR":
+                        response_text = modules.run_ocr_module(stt.language)
 
                     elif intent == "EMERGENCY":
-                        response_text = modules.run_safety_emergency(
-                            stt.current_lang_code
-                        )
+                        response_text = modules.run_safety_emergency(stt.language)
 
                     elif intent == "REGISTER_FACE":
-                        response_text = modules.run_registration_flow(
-                            stt, tts, user_text
-                        )
+                        response_text = modules.run_registration_flow(stt, tts, user_text)
 
                     elif intent == "STOP":
-                        tts.speak("Sleeping.", stt.current_lang_code)
-                        break 
+                        tts.speak("Sleeping.", stt.language)
+                        break
 
-
-                    # ---- VOICE RESPONSE OUTPUT ----
+                    # ---------------- SPEAK RESPONSE ----------------
                     if response_text:
-                        tts.speak(response_text, stt.current_lang_code)
+                        tts.speak(response_text, stt.language)
 
-        # Graceful shutdown
         except KeyboardInterrupt:
             print("\n👋 Exiting...")
             break

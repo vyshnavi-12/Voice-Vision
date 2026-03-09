@@ -3,11 +3,24 @@ import pygame                      # Audio playback
 import os                          
 import time                        
 import subprocess                  # Run Windows system commands directly
+import socket                      # Internet connectivity check
+
 
 class TextToSpeech:
     def __init__(self):
         # No initialization required for system-level TTS
         pass
+
+    def _is_connected(self):
+        """
+        Checks if internet connection is available.
+        Prevents unnecessary gTTS delay when offline.
+        """
+        try:
+            socket.create_connection(("8.8.8.8", 53), timeout=2)
+            return True
+        except:
+            return False
 
     def _speak_offline_windows(self, text):
         """
@@ -39,7 +52,7 @@ class TextToSpeech:
 
     def speak(self, text, lang_code="en-IN"):
         """
-        Speaks the given text using online TTS first,
+        Speaks the given text using online TTS first (if internet available),
         then falls back to offline Windows TTS if needed.
         """
         if not text:
@@ -48,38 +61,42 @@ class TextToSpeech:
         print(f" 🔊 Speaking: {text}")
 
         # --- ATTEMPT 1: ONLINE TTS (Google gTTS) ---
-        try:
-            # Initialize audio system only when required
-            if not pygame.mixer.get_init():
-                pygame.mixer.init()
-
-            short_lang = lang_code.split('-')[0]
-            filename = "temp_voice.mp3"
-
-            # Generate speech audio file
-            tts = gTTS(text=text, lang=short_lang, slow=False)
-            tts.save(filename)
-
-            # Play generated audio
-            pygame.mixer.music.load(filename)
-            pygame.mixer.music.play()
-
-            # Wait until playback finishes
-            while pygame.mixer.music.get_busy():
-                time.sleep(0.1)
-
-            # Cleanup audio resources
-            pygame.mixer.music.unload()
+        if self._is_connected():
             try:
-                os.remove(filename)
-            except:
-                pass
+                # Initialize audio system only when required
+                if not pygame.mixer.get_init():
+                    pygame.mixer.init()
 
-            return  # Online TTS successful
+                short_lang = lang_code.split('-')[0]
+                filename = "temp_voice.mp3"
 
-        except Exception as e:
-            print(f" ⚠️ Online TTS Failed: {e}")
-            print(" ⚡ Switching to System TTS...")
+                # Generate speech audio file
+                tts = gTTS(text=text, lang=short_lang, slow=False)
+                tts.save(filename)
+
+                # Play generated audio
+                pygame.mixer.music.load(filename)
+                pygame.mixer.music.play()
+
+                # Wait until playback finishes
+                while pygame.mixer.music.get_busy():
+                    time.sleep(0.1)
+
+                # Cleanup audio resources
+                pygame.mixer.music.unload()
+                try:
+                    os.remove(filename)
+                except:
+                    pass
+
+                return  # Online TTS successful
+
+            except Exception as e:
+                print(f" ⚠️ Online TTS Failed: {e}")
+                print(" ⚡ Switching to System TTS...")
+
+        else:
+            print(" 🌐 No Internet Connection. Using Offline TTS.")
 
         # --- ATTEMPT 2: OFFLINE TTS (Windows System Voice) ---
         try:

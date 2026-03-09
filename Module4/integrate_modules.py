@@ -126,7 +126,7 @@ def run_safety_emergency(lang):
 
 def run_registration_flow(stt_engine, tts_engine, initial_text):
     """Simulated face registration process."""
-    lang = stt_engine.current_lang_code
+    lang = stt_engine.language
     
     msg_ask = {'en': "Please look at the camera for registration.", 
                'te': "రిజిస్ట్రేషన్ కోసం కెమెరా వైపు చూడండి.", 

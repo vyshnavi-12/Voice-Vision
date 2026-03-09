@@ -13,7 +13,12 @@ def clean_audio_data(audio_sr_obj):
 
     # 2. Apply Noise Reduction
     # stationary=True helps with constant background noise like fans
-    reduced_noise = nr.reduce_noise(y=audio_np, sr=16000, stationary=True)
+    reduced_noise = nr.reduce_noise(
+    y=audio_np,
+    sr=16000,
+    stationary=False,
+    prop_decrease=0.8
+)
 
     # 3. Convert back to bytes
     clean_bytes = reduced_noise.tobytes()
