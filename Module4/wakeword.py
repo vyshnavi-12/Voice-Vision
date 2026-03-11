@@ -9,10 +9,10 @@ class WakeWordListener:
         # CONFIGURATION
         # =========================================
         # Picovoice access key (required for Porcupine)
-        self.ACCESS_KEY = "I7DwIm/orJID5Zz3kSPBeYRrt0Ic/yWnZ2eo7rLJUz9hXgklqgpxXw=="  
+        self.ACCESS_KEY = os.getenv("PICOVOICE_ACCESS_KEY")  
         
         # Custom wake-word model file ("Hello Vision")
-        self.KEYWORD_PATH = "Hello-Vision_en_windows_v4_0_0.ppn"
+        self.KEYWORD_PATH = "models/Hello-Vision_en_windows_v4_0_0.ppn"
         # =========================================
 
         # Ensure wake-word model file exists

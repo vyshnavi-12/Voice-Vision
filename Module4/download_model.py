@@ -2,7 +2,7 @@ from sentence_transformers import SentenceTransformer
 import os
 
 # Folder where model will be stored
-MODEL_DIR = "models/intent_model"
+MODEL_DIR = "models/paraphrase-multilingual-mpnet-base-v2"
 
 os.makedirs(MODEL_DIR, exist_ok=True)
 
