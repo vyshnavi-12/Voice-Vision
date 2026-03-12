@@ -11,6 +11,7 @@ from Module1.scene_description import describe_scene
 from Module1.navigation_assistance import navigate_to_object
 from Module1.currency_recognition import detect_currency
 from Module2.people_detection import count_people, describe_person
+from Module2.face_detection import register_face, recognize_face
 
 # --- 1. SYSTEM INITIALIZATION ---
 print(" [System] 🚀 Assistive AI Hub: Multi-Module Integration Loaded (Mock Mode)")
@@ -148,16 +149,54 @@ def run_people_description(lang):
     return message
 
 def run_face_recognition(lang):
-    """
-    RECOGNIZING FACES: Focuses on identity of registered users.
-    """
-    res = {
-        'en': "I recognize 'Arjun' standing in front of you.",
-        'te': "నేను మీ ముందు ఉన్న 'అర్జున్'ని గుర్తుపట్టాను.",
-        'hi': "मैं आपके सामने खड़े 'अर्जुन' को पहचान पा रहा हूँ।"
-    }
-    print("   [Face Rec] 👤 Identifying known faces...")
-    return get_lang_msg(res, lang)
+
+    print("   [Face] 👤 Running face recognition...")
+
+    message = recognize_face()
+
+    if "Unknown" in message or "do not" in message:
+
+        responses = {
+            "en": message,
+            "te": "ఈ వ్యక్తిని నేను గుర్తించలేకపోతున్నాను.",
+            "hi": "मैं इस व्यक्ति को पहचान नहीं पा रहा हूँ।"
+        }
+
+    else:
+
+        name = message.split()[0]
+
+        responses = {
+            "en": f"{name} is standing in front of you.",
+            "te": f"{name} మీ ముందు నిలబడి ఉన్నారు.",
+            "hi": f"{name} आपके सामने खड़े हैं।"
+        }
+
+    return responses.get(lang, responses["en"])
+
+def run_face_registration(lang, name):
+
+    print("   [Face] 📸 Registering new face...")
+
+    message = register_face(name)
+
+    if "successfully" in message:
+
+        responses = {
+            "en": f"{name} has been registered successfully.",
+            "te": f"{name} విజయవంతంగా నమోదు చేయబడింది.",
+            "hi": f"{name} सफलतापूर्वक पंजीकृत किया गया है।"
+        }
+
+    else:
+
+        responses = {
+            "en": "Face registration failed.",
+            "te": "ముఖం నమోదు విఫలమైంది.",
+            "hi": "चेहरा पंजीकरण असफल रहा।"
+        }
+
+    return responses.get(lang, responses["en"])
 
 def run_ocr_module(lang):
     """Reading text from signs or papers."""

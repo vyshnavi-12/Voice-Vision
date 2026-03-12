@@ -159,6 +159,12 @@ def main():
                     elif intent == "FACE_RECOGNITION":
                         response_text = modules.run_face_recognition(stt.language)
 
+                    elif intent == "REGISTER_FACE":
+                        tts.speak("What is the person's name?", stt.language)
+                        audio = stt.listen()
+                        name = stt.transcribe(audio)
+                        response_text = modules.run_face_registration(stt.language, name)
+
                     elif intent == "PEOPLE_COUNT":
                         response_text = modules.run_people_count(stt.language)
 

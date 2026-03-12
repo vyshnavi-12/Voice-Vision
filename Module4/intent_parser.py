@@ -1,6 +1,6 @@
 # intent_parser.py
 
-import re
+import os
 import torch
 from sentence_transformers import SentenceTransformer, util
 
@@ -17,16 +17,22 @@ class IntentParser:
         print(" 🧠 Loading Multilingual Semantic Brain...")
         
         # Point to the folder you created with the download script
-        local_model_path = "./models/paraphrase-multilingual-mpnet-base-v2"
+        BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+        PROJECT_ROOT = os.path.abspath(os.path.join(BASE_DIR, ".."))
 
-        try:
-            # We load directly from the local folder
-            self.model = SentenceTransformer(local_model_path)
-            print("✅ Intent model loaded from LOCAL DISK (Offline Mode).")
-        except Exception as e:
-            print(f"❌ Error: Could not find model at {local_model_path}.")
-            print("Make sure you ran download_models.py first!")
-            self.model = None
+        local_model_path = os.path.join(
+            PROJECT_ROOT,
+            "models",
+            "paraphrase-multilingual-mpnet-base-v2"
+        )
+
+        if not os.path.exists(local_model_path):
+            raise FileNotFoundError(
+                f"❌ Error: Could not find model at {local_model_path}.\n"
+                "Make sure you ran download_models.py first!"
+            )
+
+        self.model = SentenceTransformer(local_model_path)
 
         # -------------------------------
         # Intent Bank (Same as Runtime)
@@ -188,6 +194,28 @@ class IntentParser:
                 "padho", "kya likha hai", "ispe kya likha hai", "bill padho", "text padho",
                 "पढ़ो", "क्या लिखा है", "इसपे क्या लिखा है", "बिल पढ़ो", "टेक्स्ट पढ़ो",
                 "ओसीआर स्कैन", "डॉक्यूमेंट पढ़ो"
+            ],
+
+            "FACE_RECOGNITION": [
+
+            # ---------------- ENGLISH ----------------
+            "who is in front of me", "who is this person", "do you know this person",
+            "recognize this face", "identify this person", "who am i looking at",
+            "tell me who this is", "do you recognize him", "do you recognize her",
+            "whose face is this", "who is standing here",
+            "who is standing in front of me", "who is this",
+
+            # ---------------- TELUGU ----------------
+            "ఇతను ఎవరు", "ఆమె ఎవరు", "నా ముందు ఎవరు ఉన్నారు",
+            "ఈ వ్యక్తి ఎవరు", "ఈ ముఖం ఎవరిది", "ఈ మనిషి పేరు చెప్పు",
+            "ఈ వ్యక్తిని గుర్తించగలవా", "ఈ వ్యక్తి ఎవరో చెప్పు", "నా ముందు నిలబడి ఉన్న వ్యక్తి ఎవరు",
+            "ఈ ముఖం ఎవరిదో చెప్పు",
+
+            # ---------------- HINDI ----------------
+            "ये कौन है", "मेरे सामने कौन है", "इस व्यक्ति को पहचानो",
+            "इसका नाम क्या है", "क्या तुम इसे पहचानते हो", "चेहरा पहचानो",
+            "यह व्यक्ति कौन है", "बताओ यह कौन है", "मेरे सामने खड़ा व्यक्ति कौन है",
+            "इसका चेहरा पहचानो"
             ],
 
             "REGISTER_FACE": [
