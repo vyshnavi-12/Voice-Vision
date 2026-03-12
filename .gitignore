@@ -2,3 +2,4 @@ __pycache__/
 .env
 yolov8x.pt
 Evaluation/
+models/paraphrase-multilingual-mpnet-base-v2/
