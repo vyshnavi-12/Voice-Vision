@@ -159,8 +159,11 @@ def main():
                     elif intent == "FACE_RECOGNITION":
                         response_text = modules.run_face_recognition(stt.language)
 
-                    elif intent == "PEOPLE_DETECTION":
-                        response_text = modules.run_people_detection(stt.language)
+                    elif intent == "PEOPLE_COUNT":
+                        response_text = modules.run_people_count(stt.language)
+
+                    elif intent == "PERSON_DESCRIPTION":
+                        response_text = modules.run_people_description(stt.language)
 
                     elif intent == "SCENE_DESCRIPTION":
                         if check_internet():

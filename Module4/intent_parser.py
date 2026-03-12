@@ -55,37 +55,54 @@ class IntentParser:
             ],
 
             "FACE_RECOGNITION": [
-                # ENGLISH
-                "who is this person", "who is in front of me", "recognize this face",
-                "do you know him", "do you know her", "name this person", "identify him",
-                "recognize her", "tell me who this is", "face recognition", "who are you seeing",
-                
-                # TELUGU  
-                "tana peru enti", "evaru ithanu", "mukham gurthu unda", "ithanu evaru",
-                "ఈ మనిషి పేరు ఏమిటి", "ముఖం గుర్తుందా", "ఇతను ఎవరు", "ఆమె పేరు చెప్పు",
-                "ముఖం గుర్తించు", "ఫేస్ రికగ్నైజ్ చేయి",
-                
-                # HINDI
-                "kaun hai ye", "chehra pehchano", "iska naam kya hai", "yeh kisne hai",
-                "मुकाबला पहचानो", "इसका नाम क्या है", "ये कौन है", "चेहरा पहचानो",
-                "फेस रिकग्निशन", "उसका नाम बताओ"
+
+            # ---------------- ENGLISH ----------------
+            "who is in front of me", "who is this person", "do you know this person",
+            "recognize this face", "identify this person", "who am i looking at",
+            "tell me who this is", "do you recognize him", "do you recognize her",
+            "whose face is this",
+
+            # ---------------- TELUGU ----------------
+            "ఇతను ఎవరు", "ఆమె ఎవరు", "నా ముందు ఎవరు ఉన్నారు",
+            "ఈ వ్యక్తి ఎవరు", "ఈ ముఖం ఎవరిది", "ముఖం గుర్తించు",
+            "ఈ మనిషి పేరు చెప్పు", "ఈ వ్యక్తిని గుర్తించగలవా",
+
+            # ---------------- HINDI ----------------
+            "ये कौन है", "मेरे सामने कौन है", "इस व्यक्ति को पहचानो",
+            "इसका नाम क्या है", "क्या तुम इसे पहचानते हो", "चेहरा पहचानो",
+            "ये व्यक्ति कौन है", "बताओ यह कौन है"
             ],
 
-            "PEOPLE_DETECTION": [
-                # ENGLISH
-                "how many people are here", "are there people around", "is anyone standing there",
-                "count the people", "people count", "number of people", "people nearby",
-                "any people around", "how many persons", "people detection", "crowd size",
-                
-                # TELUGU
-                "evaru unnaru", "entha mandi unnaru", "ikkada evaru unnaru", "manishi entha mandi",
-                "ఎవరు ఉన్నారు", "ఎంత మంది ఉన్నారు", "ఇక్కడ ఎవరు ఉన్నారు",
-                "మనుషులు ఎంత మంది", "ప్రజలు ఎంత మంది", "పీపుల్ కౌంట్",
-                
-                # HINDI
-                "kitne log hain", "koi hai kya", "yahan kitne log hain", "log gin lo",
-                "कितने लोग हैं", "कोई है क्या", "यहाँ कितने लोग हैं", "लोग गिनो",
-                "पर्सन्स काउंट", "क्राउड साइज"
+            "PEOPLE_COUNT": [
+
+            # ---------------- ENGLISH ----------------
+            "how many people are here", "count the people", "how many persons are there",
+            "number of people", "are there people around", "how many people are in front of me",
+            "is anyone standing there", "people count",
+
+            # ---------------- TELUGU ----------------
+            "ఎంత మంది ఉన్నారు", "ఇక్కడ ఎంత మంది ఉన్నారు", "నా ముందు ఎంత మంది ఉన్నారు",
+            "ఎవరు ఉన్నారు", "మనుషులు ఎంత మంది", "ప్రజలు ఎంత మంది",
+
+            # ---------------- HINDI ----------------
+            "कितने लोग हैं", "यहाँ कितने लोग हैं", "मेरे सामने कितने लोग हैं",
+            "लोग गिनो", "लोग कितने हैं", "क्या यहाँ कोई है"
+            ],
+
+            "PERSON_DESCRIPTION": [
+
+            # ---------------- ENGLISH ----------------
+            "describe the person", "what does the person look like", "describe the person in front of me",
+            "tell me about the person", "what is the person wearing", "describe him",
+            "describe her", "how does the person look",
+
+            # ---------------- TELUGU ----------------
+            "ఈ వ్యక్తిని వివరించు", "ఆ వ్యక్తి ఎలా ఉన్నాడు", "ఆమె ఎలా కనిపిస్తోంది",
+            "ఆ మనిషి గురించి చెప్పు", "వాడు ఎలా ఉన్నాడు", "వాళ్లు ఎలా ఉన్నారు",
+
+            # ---------------- HINDI ----------------
+            "इस व्यक्ति का वर्णन करो", "यह व्यक्ति कैसा दिखता है", "उस व्यक्ति के बारे में बताओ",
+            "वह क्या पहन रहा है", "उसका वर्णन करो","यह आदमी कैसा दिखता है"
             ],
 
             "SCENE_DESCRIPTION": [

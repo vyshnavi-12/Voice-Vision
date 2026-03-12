@@ -12,14 +12,14 @@ SAFE_DISTANCE = 1.0
 # -------------------------------
 # Load YOLO Model
 # -------------------------------
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-MODEL_PATH = os.path.join(BASE_DIR, "models", "best.pt")
+import os
 
-print("Loading obstacle model from:", MODEL_PATH)
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+PROJECT_ROOT = os.path.abspath(os.path.join(BASE_DIR, ".."))
+
+MODEL_PATH = os.path.join(PROJECT_ROOT, "models", "obstacle_best.pt")
 
 model = YOLO(MODEL_PATH)
-
-print("Loaded model classes:", model.names)
 
 # -------------------------------
 # Detection Parameters

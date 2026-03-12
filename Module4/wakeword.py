@@ -8,13 +8,18 @@ class WakeWordListener:
         # =========================================
         # CONFIGURATION
         # =========================================
-        # Picovoice access key (required for Porcupine)
-        self.ACCESS_KEY = os.getenv("PICOVOICE_ACCESS_KEY")  
-        
-        # Custom wake-word model file ("Hello Vision")
-        self.KEYWORD_PATH = "models/Hello-Vision_en_windows_v4_0_0.ppn"
-        # =========================================
+        # Picovoice access key
+        self.ACCESS_KEY = os.getenv("PICOVOICE_ACCESS_KEY")
 
+        BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+        PROJECT_ROOT = os.path.abspath(os.path.join(BASE_DIR, ".."))
+
+        # Wake word model path
+        self.KEYWORD_PATH = os.path.join(
+            PROJECT_ROOT,
+            "models",
+            "Hello-Vision_en_windows_v4_0_0.ppn"
+        )
         # Ensure wake-word model file exists
         if not os.path.exists(self.KEYWORD_PATH):
             raise FileNotFoundError(f"❌ Error: Could not find '{self.KEYWORD_PATH}'")

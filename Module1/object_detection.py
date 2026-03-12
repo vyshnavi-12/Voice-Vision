@@ -7,7 +7,9 @@ from Module1.object_classes import OBJECT_CLASSES
 # Load YOLO Model (only once)
 # -------------------------------
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-MODEL_PATH = os.path.join(BASE_DIR, "models", "yolov8x.pt")
+PROJECT_ROOT = os.path.abspath(os.path.join(BASE_DIR, ".."))
+
+MODEL_PATH = os.path.join(PROJECT_ROOT, "models", "yolov8x.pt")
 
 model = YOLO(MODEL_PATH)
 

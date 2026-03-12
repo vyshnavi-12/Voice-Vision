@@ -10,6 +10,7 @@ from Module1.obstacle_detection import detect_obstacle
 from Module1.scene_description import describe_scene
 from Module1.navigation_assistance import navigate_to_object
 from Module1.currency_recognition import detect_currency
+from Module2.people_detection import count_people, describe_person
 
 # --- 1. SYSTEM INITIALIZATION ---
 print(" [System] 🚀 Assistive AI Hub: Multi-Module Integration Loaded (Mock Mode)")
@@ -29,18 +30,22 @@ def run_currency_detection(lang):
     currency = detect_currency()
 
     if not currency:
-        sentence = "I cannot detect any currency note."
 
-    else:
-        sentence = f"This appears to be {currency} rupees."
+        responses = {
+            "en": "I cannot detect any currency note.",
+            "te": "నాకు కరెన్సీ నోటు కనిపించలేదు.",
+            "hi": "मुझे कोई मुद्रा नोट दिखाई नहीं दे रहा है।"
+        }
 
-    res = {
-        "en": sentence,
-        "te": "కరెన్సీ నోటు గుర్తించబడింది.",
-        "hi": "मुद्रा नोट पहचाना गया है।"
+        return responses.get(lang, responses["en"])
+
+    responses = {
+        "en": f"This appears to be {currency} rupees.",
+        "te": f"ఇది {currency} రూపాయల నోటు.",
+        "hi": f"यह {currency} रुपये का नोट है।"
     }
 
-    return res.get(lang, sentence)
+    return responses.get(lang, responses["en"])
 
 def run_realtime_scene_description(lang):
 
@@ -57,21 +62,36 @@ def run_object_detection(lang):
     objects = detect_objects()
 
     if not objects:
-        sentence = "I do not see any objects nearby."
+
+        responses = {
+            "en": "I do not see any objects nearby.",
+            "te": "నా ముందు ఎలాంటి వస్తువులు కనిపించలేదు.",
+            "hi": "मुझे कोई वस्तु दिखाई नहीं दे रही है।"
+        }
+
+        return responses.get(lang, responses["en"])
 
     elif len(objects) == 1:
-        sentence = f"There is a {objects[0]} in front of you."
+
+        responses = {
+            "en": f"There is a {objects[0]} in front of you.",
+            "te": f"మీ ముందు ఒక {objects[0]} ఉంది.",
+            "hi": f"आपके सामने एक {objects[0]} है।"
+        }
+
+        return responses.get(lang, responses["en"])
 
     else:
-        sentence = "There are " + ", ".join(objects[:-1]) + " and " + objects[-1] + " in front of you."
 
-    res = {
-        'en': sentence,
-        'te': "మీ ముందు కొన్ని వస్తువులు ఉన్నాయి.",
-        'hi': "आपके सामने कुछ वस्तुएं हैं।"
-    }
+        object_list = ", ".join(objects[:-1]) + " and " + objects[-1]
 
-    return get_lang_msg(res, lang)
+        responses = {
+            "en": f"There are {object_list} in front of you.",
+            "te": f"మీ ముందు {object_list} ఉన్నాయి.",
+            "hi": f"आपके सामने {object_list} हैं।"
+        }
+
+        return responses.get(lang, responses["en"])
 
 def run_obstacle_detection():
 
@@ -87,17 +107,45 @@ def run_navigation_assistance(lang, target_object):
 
     return guidance
 
-def run_people_detection(lang):
-    """
-    DESCRIBING PEOPLE: Focuses on count and appearance.
-    """
-    res = {
-        'en': "There are two people standing in front of you. One is wearing a blue shirt.",
-        'te': "మీ ముందు ఇద్దరు వ్యక్తులు నిలబడి ఉన్నారు. ఒకరు నీలం రంగు చొక్కా ధరించి ఉన్నారు.",
-        'hi': "आपके सामने दो लोग खड़े हैं। एक ने नीली कमीज पहनी है।"
-    }
-    print("   [People Det] 👥 Describing physical presence...")
-    return get_lang_msg(res, lang)
+def run_people_count(lang):
+
+    print("   [People] 👥 Counting people...")
+
+    count = count_people()
+
+    if count == 0:
+
+        responses = {
+            "en": "I do not see anyone.",
+            "te": "నాకు ఎవరూ కనిపించలేదు.",
+            "hi": "मुझे कोई व्यक्ति दिखाई नहीं दे रहा है।"
+        }
+
+    elif count == 1:
+
+        responses = {
+            "en": "There is one person in front of you.",
+            "te": "మీ ముందు ఒక వ్యక్తి ఉన్నాడు.",
+            "hi": "आपके सामने एक व्यक्ति है।"
+        }
+
+    else:
+
+        responses = {
+            "en": f"There are {count} people in front of you.",
+            "te": f"మీ ముందు {count} మంది వ్యక్తులు ఉన్నారు.",
+            "hi": f"आपके सामने {count} लोग हैं।"
+        }
+
+    return responses.get(lang, responses["en"])
+
+def run_people_description(lang):
+
+    print("   [People] 🧑 Describing person...")
+
+    message = describe_person()
+
+    return message
 
 def run_face_recognition(lang):
     """
