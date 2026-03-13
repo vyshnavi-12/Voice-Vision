@@ -142,6 +142,7 @@ def main():
 
                     # ---------------- NORMAL INTENT DISPATCH ----------------
                     if intent == "UNKNOWN":
+                        
                         fallback_responses = {
                             "en": "I'm sorry, I didn't understand that. Please repeat.",
                             "te": "క్షమించండి, నేను అర్థం చేసుకోలేకపోయాను. మళ్లీ చెప్పండి.",
@@ -160,6 +161,7 @@ def main():
                         response_text = modules.run_face_recognition(stt.language)
 
                     elif intent == "REGISTER_FACE":
+
                         tts.speak("What is the person's name?", stt.language)
                         audio = stt.listen()
                         name = stt.transcribe(audio)
@@ -172,6 +174,7 @@ def main():
                         response_text = modules.run_people_description(stt.language)
 
                     elif intent == "SCENE_DESCRIPTION":
+
                         if check_internet():
                             print("🌐 Internet detected → running scene description")
                             response_text = modules.run_realtime_scene_description(stt.language)
@@ -184,6 +187,7 @@ def main():
                         response_text = modules.run_object_detection(stt.language)
 
                     elif intent == "NAVIGATION":
+
                         tts.speak("What object should I look for?", stt.language)
 
                         audio = stt.listen()
@@ -202,8 +206,21 @@ def main():
                     elif intent == "EMERGENCY":
                         response_text = modules.run_safety_emergency(stt.language)
 
-                    elif intent == "REGISTER_FACE":
-                        response_text = modules.run_registration_flow(stt, tts, user_text)
+                    elif intent == "REGISTER_CONTACT":
+
+                        tts.speak("Tell me the contact name.", stt.language)
+                        audio = stt.listen()
+                        name = stt.transcribe(audio)
+
+                        tts.speak("Tell me the phone number.", stt.language)
+                        audio = stt.listen()
+                        phone = stt.transcribe(audio)
+
+                        response_text = modules.run_phone_registration(
+                            stt.language,
+                            name,
+                            phone
+                        )
 
                     elif intent == "STOP":
                         tts.speak("Sleeping.", stt.language)

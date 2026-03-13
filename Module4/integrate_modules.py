@@ -12,6 +12,8 @@ from Module1.navigation_assistance import navigate_to_object
 from Module1.currency_recognition import detect_currency
 from Module2.people_detection import count_people, describe_person
 from Module2.face_detection import register_face, recognize_face
+from Module5.phone_register import register_contact
+from Module5.emergency import trigger_emergency
 
 # --- 1. SYSTEM INITIALIZATION ---
 print(" [System] 🚀 Assistive AI Hub: Multi-Module Integration Loaded (Mock Mode)")
@@ -208,45 +210,31 @@ def run_ocr_module(lang):
     print("   [OCR] 📄 Extracting text...")
     return get_lang_msg(res, lang)
 
+def run_phone_registration(lang, name, phone):
+
+    print("   [Safety] 📱 Registering emergency contact...")
+
+    result = register_contact(name, phone)
+
+    responses = {
+        "en": result,
+        "te": f"{name} అత్యవసర సంప్రదింపుగా నమోదు చేయబడింది.",
+        "hi": f"{name} को आपातकालीन संपर्क के रूप में जोड़ा गया है।"
+    }
+
+    return responses.get(lang, responses["en"])
+
 def run_safety_emergency(lang):
-    """
-    SAFETY & EMERGENCY: Triggered when the user asks for help.
-    Sends alert message + optional location to pre-registered emergency contacts.
-    (Mock Implementation)
-    """
-    print("   [Emergency] 🆘 Emergency command detected...")
-    time.sleep(1)
 
-    print("   [Emergency] 📍 Fetching current location (mock GPS)...")
-    time.sleep(1)
+    print("   [Emergency] 🆘 Emergency command detected")
 
-    print("   [Emergency] 📲 Sending alert to registered contacts via SMS/WhatsApp...")
-    time.sleep(1)
+    trigger_emergency()
 
     res = {
-        'en': "Your emergency message with location has been sent to your registered contacts. Help is on the way.",
-        'te': "మీ అత్యవసర సందేశం మరియు మీ ప్రస్తుత స్థానం నమోదు చేసిన సంప్రదింపులకు పంపబడింది. సహాయం త్వరలో చేరుతుంది.",
-        'hi': "आपका आपातकालीन संदेश और स्थान पंजीकृत संपर्कों को भेज दिया गया है। सहायता रास्ते में है।"
+        'en': "Emergency alert has been sent to your caretakers.",
+        'te': "మీ అత్యవసర సందేశం మీ కేర్‌టేకర్లకు పంపబడింది.",
+        'hi': "आपातकालीन संदेश आपके संपर्कों को भेज दिया गया है।"
     }
 
     return get_lang_msg(res, lang)
 
-# --- 3. REGISTRATION FLOW (MOCK) ---
-
-def run_registration_flow(stt_engine, tts_engine, initial_text):
-    """Simulated face registration process."""
-    lang = stt_engine.language
-    
-    msg_ask = {'en': "Please look at the camera for registration.", 
-               'te': "రిజిస్ట్రేషన్ కోసం కెమెరా వైపు చూడండి.", 
-               'hi': "पंजीकरण के लिए कैमरे की ओर देखें।"}
-    
-    tts_engine.speak(get_lang_msg(msg_ask, lang), lang)
-    time.sleep(2) # Mocking capture
-    
-    res_done = {
-        'en': "Registration complete. Face saved to database.",
-        'te': "రిజిస్ట్రేషన్ పూర్తయింది. ముఖం డేటాబేస్‌లో సేవ్ చేయబడింది.",
-        'hi': "पंजीकरण पूरा हुआ। चेहरा डेटाबेस में सहेज लिया गया है।"
-    }
-    return get_lang_msg(res_done, lang)
