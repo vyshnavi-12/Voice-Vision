@@ -235,18 +235,42 @@ class IntentParser:
                 "कॉन्टैक्ट्स में ऐड करो"
             ],
 
+            "REGISTER_CONTACT": [
+
+                # ---------------- ENGLISH ----------------
+                "register contact", "add emergency contact", "save a phone number",
+                "add caretaker number", "save this number", "register caretaker",
+                "store emergency contact", "add contact for help", "save emergency number",
+                "add new contact",
+
+                # ---------------- TELUGU ----------------
+                "సంప్రదింపు నమోదు చేయి", "కాంటాక్ట్ సేవ్ చేయి", "అత్యవసర సంప్రదింపు జోడించు",
+                "ఈ నంబర్ సేవ్ చేయి", "కేర్‌టేకర్ నంబర్ సేవ్ చేయి", "కాంటాక్ట్ యాడ్ చేయి",
+                "సహాయం కోసం నంబర్ సేవ్ చేయి", "ఫోన్ నంబర్ నమోదు చేయి",
+
+                # ---------------- HINDI ----------------
+                "संपर्क जोड़ो", "आपातकालीन संपर्क जोड़ो", "फोन नंबर सेव करो",
+                "केयरटेकर नंबर सेव करो", "नया संपर्क जोड़ो", "इस नंबर को सेव करो",
+                "इमरजेंसी कॉन्टैक्ट जोड़ो", "संपर्क पंजीकृत करो"
+            ],
+
             "EMERGENCY": [
-                # ENGLISH
-                "help me", "i am in danger", "sos", "save my life", "emergency", "help now",
-                "urgent help", "danger", "rescue me", "emergency sos", "mayday",
-                
-                # TELUGU
-                "nannu kapadu", "apadha", "emergency", "sos", "sahaayam", "urgent",
-                "నన్ను కాపాడు", "అపَد", "ఎమర్జెన్సీ", "SOS", "సహాయం", "అత్యవసరం",
-                
-                # HINDI
-                "bachao", "madad karo", "emergency", "sos", "khatera", "help",
-                "बचाओ", "मदद करो", "इमरजेंसी", "SOS", "खतरा", "हेल्प"
+
+                # ---------------- ENGLISH ----------------
+                "help me", "i need help", "i am in danger",
+                "emergency", "sos", "call for help",
+                "send emergency alert", "please help me",
+                "urgent help", "danger help",
+
+                # ---------------- TELUGU ----------------
+                "నన్ను కాపాడు", "సహాయం కావాలి", "ఎమర్జెన్సీ",
+                "నాకు సహాయం చేయండి", "అపాయం ఉంది",
+                "అత్యవసర సహాయం", "దయచేసి సహాయం చేయండి",
+
+                # ---------------- HINDI ----------------
+                "मदद करो", "मुझे मदद चाहिए", "मैं खतरे में हूँ",
+                "इमरजेंसी", "तुरंत मदद करो", "आपातकालीन मदद",
+                "कृपया मदद करो"
             ],
 
             "SWITCH_LANGUAGE": [
