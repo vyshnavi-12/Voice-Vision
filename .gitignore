@@ -5,3 +5,4 @@ Evaluation/
 models/paraphrase-multilingual-mpnet-base-v2/
 secret.key
 secure_contacts.json
+node_modules/

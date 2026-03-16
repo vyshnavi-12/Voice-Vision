@@ -201,7 +201,21 @@ def main():
                         )
 
                     elif intent == "OCR":
-                        response_text = modules.run_ocr_module(stt.language)
+
+                        # Pause obstacle detection — camera needed exclusively for OCR
+                        obstacle_detection_enabled = False
+
+                        # Build speak callback using current language
+                        def ocr_speak_callback(msg):
+                            tts.speak(msg, stt.language)
+
+                        response_text = modules.run_ocr_module(
+                            stt.language,
+                            speak_callback=ocr_speak_callback
+                        )
+
+                        # Resume obstacle detection after OCR completes
+                        obstacle_detection_enabled = True
 
                     elif intent == "EMERGENCY":
                         response_text = modules.run_safety_emergency(stt.language)

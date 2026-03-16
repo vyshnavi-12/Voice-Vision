@@ -14,6 +14,7 @@ from Module2.people_detection import count_people, describe_person
 from Module2.face_detection import register_face, recognize_face
 from Module5.phone_register import register_contact
 from Module5.emergency import trigger_emergency
+from Module3.ocr import run_ocr
 
 # --- 1. SYSTEM INITIALIZATION ---
 print(" [System] 🚀 Assistive AI Hub: Multi-Module Integration Loaded (Mock Mode)")
@@ -200,15 +201,43 @@ def run_face_registration(lang, name):
 
     return responses.get(lang, responses["en"])
 
-def run_ocr_module(lang):
-    """Reading text from signs or papers."""
-    res = {
-        'en': "The sign reads: 'Pharmacy - Open 24 Hours'.",
-        'te': "సైన్ బోర్డు మీద ఇలా ఉంది: 'ఫార్మసీ - 24 గంటలు తెరిచి ఉంటుంది'.",
-        'hi': "बोर्ड पर लिखा है: 'फार्मेसी - 24 घंटे खुला है'।"
+def run_ocr_module(lang, speak_callback=None):
+
+    print("   [OCR] 📄 Starting OCR — align the camera to the text...")
+
+    # Tell user to hold document before camera opens
+    if speak_callback:
+        guidance_prompts = {
+            "en": "Please hold the document in front of the camera.",
+            "te": "దయచేసి డాక్యుమెంట్‌ని కెమెరా ముందు పట్టుకోండి.",
+            "hi": "कृपया दस्तावेज़ को कैमरे के सामने रखें।"
+        }
+        speak_callback(guidance_prompts.get(lang, guidance_prompts["en"]))
+
+    # Pass speak_callback so live guidance is spoken during alignment
+    text = run_ocr(speak_callback=speak_callback)
+
+    # Handle camera error
+    if text.startswith("Camera error"):
+        return text
+
+    # Handle no text found
+    if not text or text.strip() == "" or text == "I could not read any text.":
+        no_text_responses = {
+            "en": "I could not read any text.",
+            "te": "నాకు ఏ టెక్స్ట్ చదవడం సాధ్యం కాలేదు.",
+            "hi": "मैं कोई टेक्स्ट नहीं पढ़ पाया।"
+        }
+        return no_text_responses.get(lang, no_text_responses["en"])
+
+    # Prefix result with spoken intro
+    intros = {
+        "en": "The text reads: ",
+        "te": "టెక్స్ట్ ఇలా ఉంది: ",
+        "hi": "टेक्स्ट इस प्रकार है: "
     }
-    print("   [OCR] 📄 Extracting text...")
-    return get_lang_msg(res, lang)
+
+    return intros.get(lang, intros["en"]) + text
 
 def run_phone_registration(lang, name, phone):
 

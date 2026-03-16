@@ -1,375 +1,299 @@
 import cv2
-
+import time
 import easyocr
-
-import os
-
 import re
-
 import numpy as np
-
 from difflib import SequenceMatcher
-
 from spellchecker import SpellChecker
-
- 
 
 reader = easyocr.Reader(['en'], gpu=False)
 
-cap = cv2.VideoCapture(0)
+# =========================
+# GUIDANCE SYSTEM
+# =========================
 
-cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1920)
+def get_guidance(frame, boxes):
 
-cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 1080)
+    h, w = frame.shape[:2]
 
- 
+    if len(boxes) == 0:
+        return "Please move closer to the text."
 
-all_lines = []  # flat list of (text, conf) across all frames
+    xs      = []
+    ys      = []
+    heights = []
 
-frame_count = 0
+    for box in boxes:
+        (tl, tr, br, bl) = box
+        xs.append(tl[0])
+        ys.append(tl[1])
+        heights.append(br[1] - tl[1])
 
-PROCESS_EVERY = 3
+    avg_x      = sum(xs)      / len(xs)
+    avg_y      = sum(ys)      / len(ys)
+    avg_height = sum(heights) / len(heights)
 
-OUTPUT_DIR = "processed_frames"
+    center_x = w / 2
+    center_y = h / 2
 
-os.makedirs(OUTPUT_DIR, exist_ok=True)
+    if avg_height < 35:
+        return "Please move closer to the text."
 
- 
+    if avg_x < center_x * 0.75:
+        return "Please move the document to the left."
 
-print("Real-time OCR started. Hold text steady in front of camera.")
+    if avg_x > center_x * 1.25:
+        return "Please move the document to the right."
 
-print("Press Ctrl+C to stop and see final text.\n")
+    if avg_y < center_y * 0.75:
+        return "Please tilt the document downward."
 
- 
+    if avg_y > center_y * 1.25:
+        return "Please tilt the document upward."
 
-def preprocess(img):
+    return "ready"
 
-    # Gentle denoise — preserve text edges
+# =========================
+# MAIN OCR FUNCTION
+# =========================
 
-    img = cv2.GaussianBlur(img, (3, 3), 0)
+def run_ocr(speak_callback=None):
 
-    # CLAHE for contrast
+    time.sleep(0.7)
 
-    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
+    cap = cv2.VideoCapture(0, cv2.CAP_DSHOW)
+    cap.set(cv2.CAP_PROP_FRAME_WIDTH,  1280)
+    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
 
-    img = clahe.apply(img)
+    captured_frame       = None
+    start_time           = time.time()
+    last_guidance_spoken = None
+    last_spoken_time     = 0
+    REPEAT_INTERVAL      = 4.0
+    TIMEOUT              = 30.0
 
-    # Upscale 2x
-
-    h, w = img.shape
-
-    img = cv2.resize(img, (w * 2, h * 2), interpolation=cv2.INTER_CUBIC)
-
-    return img
-
- 
-
-def is_valid_text(text):
-
-    text = text.strip()
-
-    if len(text) < 3:
-
-        return False
-
-    alpha = sum(c.isalpha() or c.isspace() for c in text)
-
-    if alpha / len(text) < 0.5:
-
-        return False
-
-    return True
-
- 
-
-spell = SpellChecker(distance=2)
-
- 
-
-OCR_CHAR_FIXES = {
-
-    '$': 's', '(': '', ')': '', '|': 'l', '{': 't',
-
-    '}': '', ';': ',', '0f': 'of', '1n': 'In',
-
-}
-
- 
-
-OCR_WORD_MAP = {
-
-    'almost': 'Times', 'tho': 'The', 'wo': 'We', 'biko': 'like',
-
-    'moro': 'more', 'fominlet': 'feminist', 'fominist': 'feminist',
-
-    'manitoslo': 'manifesto', 'manitesto': 'manifesto',
-
-    'sandburg': 'Sandberg', 'rig': 'arms', 'car': 'far',
-
-    'tlmas': 'Times', 'oficer': 'officer', 'achaving': 'achieving',
-
-    'dobate': 'debate', 'crillcal': 'critical', 'diract': 'direct',
-
-    'telegroph': 'Telegraph', 'alandmgrk': 'A landmark',
-
-    'manileslo': 'manifesto', 'wolcome': 'welcome',
-
-    'coucal': 'critical', 'rollers': 'offers', 'heir': 'their',
-
-    'fisc': 'FSC', 'now': 'New', 'women': 'women\'s',
-
-}
-
- 
-
-def fix_ocr_chars(text):
-
-    for bad, good in OCR_CHAR_FIXES.items():
-
-        text = text.replace(bad, good)
-
-    # Fix common OCR patterns
-
-    text = re.sub(r'\(0\b', 'to', text)
-
-    text = re.sub(r'\{heir\b', 'their', text)
-
-    text = re.sub(r"Women\s*\$", "women's", text)
-
-    text = re.sub(r';', ',', text)
-
-    return text
-
- 
-
-def fix_ocr_word(word):
-
-    if len(word) <= 1:
-
-        return word
-
-    if word.lower() in OCR_WORD_MAP:
-
-        return OCR_WORD_MAP[word.lower()]
-
-    if word.lower() in spell:
-
-        return word
-
-    correction = spell.correction(word.lower())
-
-    if correction and correction != word.lower():
-
-        if word[0].isupper():
-
-            correction = correction.capitalize()
-
-        if word.isupper():
-
-            correction = correction.upper()
-
-        return correction
-
-    return word
-
- 
-
-def correct_line(line):
-
-    # Apply character-level fixes first
-
-    line = fix_ocr_chars(line)
-
-    # Apply word map
-
-    line_lower = line.strip().lower()
-
-    for bad, good in OCR_WORD_MAP.items():
-
-        if bad in line_lower:
-
-            line = re.sub(re.escape(bad), good, line, flags=re.IGNORECASE)
-
-    words = line.split()
-
-    corrected = []
-
-    for word in words:
-
-        prefix = ""
-
-        suffix = ""
-
-        while word and not word[0].isalnum():
-
-            prefix += word[0]
-
-            word = word[1:]
-
-        while word and not word[-1].isalnum():
-
-            suffix = word[-1] + suffix
-
-            word = word[:-1]
-
-        if word:
-
-            word = fix_ocr_word(word)
-
-        corrected.append(prefix + word + suffix)
-
-    return " ".join(corrected)
-
- 
-
-def ocr_region(img):
-
-    results = reader.readtext(img)
-
-    return [(text.strip(), conf) for _, text, conf in results
-
-            if conf > 0.3 and is_valid_text(text)]
-
- 
-
-try:
-
+    # ---- GUIDANCE LOOP ----
     while True:
 
         ret, frame = cap.read()
 
         if not ret:
+            cap.release()
+            return "Camera error. Please check your camera."
 
-            print("ERROR: Cannot read from camera.")
+        gray_preview = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        results      = reader.readtext(gray_preview, detail=1)
 
+        boxes = []
+        for bbox, text, conf in results:
+            if conf > 0.3:
+                boxes.append(bbox)
+
+        guidance = get_guidance(frame, boxes)
+        now      = time.time()
+        elapsed  = now - start_time
+
+        print(f"OCR guidance: {guidance}  |  elapsed: {elapsed:.1f}s")
+
+        if guidance == "ready":
+            captured_frame = frame.copy()
+            print("✅ Frame captured in memory.")
+            if speak_callback:
+                speak_callback("Got it. Reading now.")
             break
 
- 
+        if speak_callback:
+            guidance_changed = (guidance != last_guidance_spoken)
+            repeat_due       = (now - last_spoken_time) >= REPEAT_INTERVAL
 
-        frame_count += 1
+            if guidance_changed or repeat_due:
+                speak_callback(guidance)
+                last_guidance_spoken = guidance
+                last_spoken_time     = now
 
-        if frame_count % PROCESS_EVERY != 0:
+        if elapsed > TIMEOUT:
+            captured_frame = frame.copy()
+            print("⏱️ Timeout — capturing best available frame.")
+            if speak_callback:
+                speak_callback("Trying to read now.")
+            break
 
-            continue
+    cap.release()
 
- 
+    # DEBUG — save captured frame to check what OCR sees
+    cv2.imwrite("debug_captured_frame.jpg", captured_frame)
+    print("📸 Debug frame saved: debug_captured_frame.jpg")
 
-        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+    # =========================
+    # HELPER FUNCTIONS
+    # =========================
 
-        processed = preprocess(gray)
+    spell = SpellChecker(distance=2)
 
- 
+    OCR_CHAR_FIXES = {
+        '$': 's', '(': '', ')': '', '|': 'l', '{': 't',
+        '}': '', ';': ',', '0f': 'of', '1n': 'In',
+    }
 
-        # Save processed images for future reference
+    OCR_WORD_MAP = {
+        'almost': 'Times', 'tho': 'The', 'wo': 'We', 'biko': 'like',
+        'moro': 'more', 'fominlet': 'feminist', 'fominist': 'feminist',
+        'manitoslo': 'manifesto', 'manitesto': 'manifesto',
+        'sandburg': 'Sandberg', 'rig': 'arms', 'car': 'far',
+        'tlmas': 'Times', 'oficer': 'officer', 'achaving': 'achieving',
+        'dobate': 'debate', 'crillcal': 'critical', 'diract': 'direct',
+        'telegroph': 'Telegraph', 'alandmgrk': 'A landmark',
+        'manileslo': 'manifesto', 'wolcome': 'welcome',
+        'coucal': 'critical', 'rollers': 'offers', 'heir': 'their',
+        'fisc': 'FSC', 'now': 'New', 'women': "women's",
+    }
 
-        cv2.imwrite(os.path.join(OUTPUT_DIR, f"frame_{frame_count}_raw.jpg"), frame)
+    def preprocess(img):
+        img = cv2.GaussianBlur(img, (3, 3), 0)
+        clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
+        img = clahe.apply(img)
+        h, w = img.shape
+        img = cv2.resize(img, (w * 2, h * 2), interpolation=cv2.INTER_CUBIC)
+        return img
 
-        cv2.imwrite(os.path.join(OUTPUT_DIR, f"frame_{frame_count}_processed.jpg"), processed)
+    def is_valid_text(text):
+        text = text.strip()
+        if len(text) < 3:
+            return False
+        alpha = sum(c.isalpha() or c.isspace() for c in text)
+        if alpha / len(text) < 0.5:
+            return False
+        return True
 
- 
+    def fix_ocr_chars(text):
+        for bad, good in OCR_CHAR_FIXES.items():
+            text = text.replace(bad, good)
+        text = re.sub(r'\(0\b',      'to',      text)
+        text = re.sub(r'\{heir\b',   'their',   text)
+        text = re.sub(r"Women\s*\$", "women's", text)
+        text = re.sub(r';',          ',',        text)
+        return text
 
-        if frame_count == PROCESS_EVERY:
+    def fix_ocr_word(word):
+        if len(word) <= 1:
+            return word
+        if word.lower() in OCR_WORD_MAP:
+            return OCR_WORD_MAP[word.lower()]
+        if word.lower() in spell:
+            return word
+        try:
+            correction = spell.correction(word.lower())
+        except:
+            return word
+        if correction and correction != word.lower():
+            if word[0].isupper():
+                correction = correction.capitalize()
+            if word.isupper():
+                correction = correction.upper()
+            return correction
+        return word
 
-            cv2.imwrite("debug_raw.jpg", frame)
+    def correct_line(line):
+        line       = fix_ocr_chars(line)
+        line_lower = line.strip().lower()
+        for bad, good in OCR_WORD_MAP.items():
+            if bad in line_lower:
+                line = re.sub(re.escape(bad), good, line, flags=re.IGNORECASE)
+        words     = line.split()
+        corrected = []
+        for word in words:
+            prefix = ""
+            suffix = ""
+            while word and not word[0].isalnum():
+                prefix += word[0]
+                word    = word[1:]
+            while word and not word[-1].isalnum():
+                suffix = word[-1] + suffix
+                word   = word[:-1]
+            if word:
+                word = fix_ocr_word(word)
+            corrected.append(prefix + word + suffix)
+        return " ".join(corrected)
 
-            cv2.imwrite("debug_processed.jpg", processed)
+    def ocr_region(img):
+        results = reader.readtext(img)
+        output  = []
+        for bbox, text, conf in results:
+            if conf > 0.3 and is_valid_text(text):
+                output.append((text.strip(), conf))
+        return output
 
-            print("Saved debug images.\n")
+    # =========================
+    # PROCESS CAPTURED FRAME
+    # =========================
 
- 
+    all_lines = []
 
-        frame_texts = ocr_region(processed)
+    # Convert to grayscale
+    gray = cv2.cvtColor(captured_frame, cv2.COLOR_BGR2GRAY)
 
- 
+    # Improve contrast
+    clahe = cv2.createCLAHE(clipLimit=2.5, tileGridSize=(8, 8))
+    gray  = clahe.apply(gray)
 
-        os.system('cls')
+    # Slight upscale for small text
+    gray = cv2.resize(gray, None, fx=1.5, fy=1.5, interpolation=cv2.INTER_CUBIC)
 
-        print(f"=== Live Detection (frame {frame_count}) ===\n")
+    # DEBUG — save processed frame to check contrast/quality
+    cv2.imwrite("debug_processed_frame.jpg", gray)
+    print("📸 Debug processed frame saved: debug_processed_frame.jpg")
 
-        if frame_texts:
+    # Primary pass — full frame
 
-            for text, conf in frame_texts:
+    # Primary pass — full frame
+    results = reader.readtext(gray, detail=1)
 
-                print(f"[{conf:.2f}] {text}")
+    for bbox, text, conf in results:
+        if conf > 0.3 and is_valid_text(text):
+            all_lines.append((text.strip(), conf))
 
-                all_lines.append((text, conf))
+    # Secondary pass — preprocess then OCR again to catch missed text
+    preprocessed      = preprocess(gray)
+    secondary_results = ocr_region(preprocessed)
+    all_lines.extend(secondary_results)
 
-        else:
+    print(f"📝 Total raw lines: {len(all_lines)}")
 
-            print("(no text detected)")
+    # =========================
+    # MERGE DETECTIONS
+    # =========================
 
- 
+    groups = []
 
-        print(f"\nTotal detections so far: {len(all_lines)}")
+    for text, conf in all_lines:
+        found = False
+        for group in groups:
+            best = max(group, key=lambda x: (len(x[0]), x[1]))
+            if SequenceMatcher(None, text.lower(), best[0].lower()).ratio() > 0.5:
+                group.append((text, conf))
+                found = True
+                break
+        if not found:
+            groups.append([(text, conf)])
 
-        print("Press Ctrl+C to stop and see final text.")
-
- 
-
-except KeyboardInterrupt:
-
-    pass
-
- 
-
-cap.release()
-
- 
-
-# Merge all detections: group similar lines, keep longest + highest conf version
-
-groups = []  # each group: list of (text, conf)
-
-for text, conf in all_lines:
-
-    found = False
+    final = []
 
     for group in groups:
-
-        # Compare against the best (longest) entry in the group
-
         best = max(group, key=lambda x: (len(x[0]), x[1]))
+        final.append(best[0])
 
-        if SequenceMatcher(None, text.lower(), best[0].lower()).ratio() > 0.5:
+    # =========================
+    # BUILD OUTPUT
+    # =========================
 
-            group.append((text, conf))
+    if final:
+        output_text = ""
+        for line in final:
+            output_text += correct_line(line) + " "
+        result = output_text.strip()
+        print(f"\n=== Final Captured Text ===\n{result}\n")
+        return result
 
-            found = True
-
-            break
-
-    if not found:
-
-        groups.append([(text, conf)])
-
- 
-
-# From each group, pick the longest version with highest confidence
-
-final = []
-
-for group in groups:
-
-    # Sort by length desc, then confidence desc
-
-    best = max(group, key=lambda x: (len(x[0]), x[1]))
-
-    final.append(best[0])
-
- 
-
-os.system('cls')
-
-print("=== Final Captured Text ===\n")
-
-if final:
-
-    for line in final:
-
-        print(correct_line(line))
-
-else:
-
-    print("(no text was captured)")
-
-print()
+    else:
+        print("(no text was captured)")
+        return "I could not read any text."
