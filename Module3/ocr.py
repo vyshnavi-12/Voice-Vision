@@ -17,7 +17,7 @@ def get_guidance(frame, boxes):
     h, w = frame.shape[:2]
 
     if len(boxes) == 0:
-        return "Please move closer to the text."
+        return "Please move the camera closer to the text."
 
     xs      = []
     ys      = []
@@ -37,19 +37,19 @@ def get_guidance(frame, boxes):
     center_y = h / 2
 
     if avg_height < 35:
-        return "Please move closer to the text."
+        return "Please move the camera closer to the text."
 
     if avg_x < center_x * 0.75:
-        return "Please move the document to the left."
+        return "Please move the camera to the right."
 
     if avg_x > center_x * 1.25:
-        return "Please move the document to the right."
+        return "Please move the camera to the left."
 
     if avg_y < center_y * 0.75:
-        return "Please tilt the document downward."
+        return "Please move the camera downward."
 
     if avg_y > center_y * 1.25:
-        return "Please tilt the document upward."
+        return "Please move the camera upward."
 
     return "ready"
 
