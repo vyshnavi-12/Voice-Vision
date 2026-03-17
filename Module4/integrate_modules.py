@@ -10,10 +10,13 @@ from Module1.obstacle_detection import detect_obstacle
 from Module1.scene_description import describe_scene
 from Module1.navigation_assistance import navigate_to_object
 from Module1.currency_recognition import detect_currency
+
 from Module2.people_detection import count_people, describe_person
 from Module2.face_detection import register_face, recognize_face
+
 from Module5.phone_register import register_contact
 from Module5.emergency import trigger_emergency
+
 from Module3.ocr import run_ocr
 
 # --- 1. SYSTEM INITIALIZATION ---
@@ -27,11 +30,11 @@ def get_lang_msg(responses, lang_code):
 
 # --- 2. CORE MODULES  ---
 
-def run_currency_detection(lang):
+def run_currency_detection(lang, frame):
 
     print("   [Currency] 💰 Running currency detection...")
 
-    currency = detect_currency()
+    currency = detect_currency(frame)
 
     if not currency:
 
@@ -51,19 +54,19 @@ def run_currency_detection(lang):
 
     return responses.get(lang, responses["en"])
 
-def run_realtime_scene_description(lang):
+def run_realtime_scene_description(lang, frame):
 
     print("   [Vision] 🌎 Running scene description...")
 
-    description = describe_scene()
+    description = describe_scene(frame)
 
     return description
 
-def run_object_detection(lang):
+def run_object_detection(lang, frame):
 
     print("   [Vision] 🔍 Running object detection...")
 
-    objects = detect_objects()
+    objects = detect_objects(frame)
 
     if not objects:
 
@@ -97,25 +100,25 @@ def run_object_detection(lang):
 
         return responses.get(lang, responses["en"])
 
-def run_obstacle_detection():
+def run_obstacle_detection(frame):
 
-    obstacle = detect_obstacle()
+    obstacle = detect_obstacle(frame)
 
     return obstacle
 
-def run_navigation_assistance(lang, target_object):
+def run_navigation_assistance(lang, frame, target_object):
 
     print("   [Navigation] 🧭 Running navigation assistance...")
 
-    guidance = navigate_to_object(target_object)
+    guidance = navigate_to_object(frame, target_object)
 
     return guidance
 
-def run_people_count(lang):
+def run_people_count(lang, frame):
 
     print("   [People] 👥 Counting people...")
 
-    count = count_people()
+    count = count_people(frame)
 
     if count == 0:
 
@@ -143,19 +146,19 @@ def run_people_count(lang):
 
     return responses.get(lang, responses["en"])
 
-def run_people_description(lang):
+def run_people_description(lang, frame):
 
     print("   [People] 🧑 Describing person...")
 
-    message = describe_person()
+    message = describe_person(frame)
 
     return message
 
-def run_face_recognition(lang):
+def run_face_recognition(lang, frame):
 
     print("   [Face] 👤 Running face recognition...")
 
-    message = recognize_face()
+    message = recognize_face(frame)
 
     if "Unknown" in message or "do not" in message:
 
@@ -177,81 +180,106 @@ def run_face_recognition(lang):
 
     return responses.get(lang, responses["en"])
 
-def run_face_registration(lang, name):
-
+def run_face_registration(lang, name, frame):
     print("   [Face] 📸 Registering new face...")
 
-    message = register_face(name)
+    if frame is None:
+        responses = {
+            "en": "I could not see your face. Please try again.",
+            "te": "ముఖం కనిపించలేదు. మళ్లీ ప్రయత్నించండి.",
+            "hi": "चेहरा नहीं दिखा। कृपया पुनः प्रयास करें।"
+        }
+        return responses.get(lang, responses["en"])
+
+    try:
+        message = register_face(name, [frame])   # ← [frame] not frame
+    except Exception as e:
+        print(f"Face registration error: {e}")
+        return "Face registration failed. Please make sure your face is clearly visible."
 
     if "successfully" in message:
-
         responses = {
             "en": f"{name} has been registered successfully.",
             "te": f"{name} విజయవంతంగా నమోదు చేయబడింది.",
             "hi": f"{name} सफलतापूर्वक पंजीकृत किया गया है।"
         }
-
     else:
-
         responses = {
-            "en": "Face registration failed.",
-            "te": "ముఖం నమోదు విఫలమైంది.",
-            "hi": "चेहरा पंजीकरण असफल रहा।"
+            "en": "No face detected. Please make sure your face is clearly visible.",
+            "te": "ముఖం కనిపించలేదు. కెమెరాకు స్పష్టంగా కనిపించేలా ఉంచండి.",
+            "hi": "चेहरा नहीं मिला। कृपया कैमरे के सामने स्पष्ट रूप से दिखें।"
         }
-
     return responses.get(lang, responses["en"])
 
-def run_ocr_module(lang, speak_callback=None):
-
-    print("   [OCR] 📄 Starting OCR — align the camera to the text...")
-
-    # Tell user to hold document before camera opens
-    if speak_callback:
-        guidance_prompts = {
-            "en": "Please hold the document in front of the camera.",
-            "te": "దయచేసి డాక్యుమెంట్‌ని కెమెరా ముందు పట్టుకోండి.",
-            "hi": "कृपया दस्तावेज़ को कैमरे के सामने रखें।"
+def run_ocr_module(lang, frame):
+    print("   [OCR] Running OCR on mobile frame...")
+ 
+    from Module3.ocr import run_ocr, get_text_bounding_box
+    from Module4.guidance import GuidanceSystem
+ 
+    if frame is None:
+        no_frame = {
+            "en": "I could not access the camera. Please try again.",
+            "te": "కెమెరా అందుబాటులో లేదు. మళ్లీ ప్రయత్నించండి.",
+            "hi": "कैमरा उपलब्ध नहीं है। कृपया पुनः प्रयास करें।",
         }
-        speak_callback(guidance_prompts.get(lang, guidance_prompts["en"]))
-
-    # Pass speak_callback so live guidance is spoken during alignment
-    text = run_ocr(speak_callback=speak_callback)
-
-    # Handle camera error
-    if text.startswith("Camera error"):
-        return text
-
-    # Handle no text found
+        return no_frame.get(lang, no_frame["en"])
+ 
+    # Step 1: check alignment using GuidanceSystem
+    guidance_system = GuidanceSystem()
+    guidance_system.update_frame_dims(frame)
+    text_box  = get_text_bounding_box(frame)
+    guide_msg = guidance_system.get_guidance(text_box)
+ 
+    if guide_msg != "OK":
+        print(f"   [OCR] Guidance needed: {guide_msg}")
+        return guide_msg   # detected as guidance by keyword check in main.py
+ 
+    # Step 2: frame aligned — run OCR
+    print("   [OCR] Frame aligned — running full OCR...")
+    text = run_ocr(frame)
+ 
     if not text or text.strip() == "" or text == "I could not read any text.":
-        no_text_responses = {
-            "en": "I could not read any text.",
-            "te": "నాకు ఏ టెక్స్ట్ చదవడం సాధ్యం కాలేదు.",
-            "hi": "मैं कोई टेक्स्ट नहीं पढ़ पाया।"
+        no_text = {
+            "en": "I could not read any text from this frame. Please try again.",
+            "te": "ఈ ఫ్రేమ్ నుండి టెక్స్ట్ చదవలేకపోయాను. మళ్లీ ప్రయత్నించండి.",
+            "hi": "इस फ्रेम से कोई टेक्स्ट नहीं पढ़ सका। कृपया पुनः प्रयास करें।",
         }
-        return no_text_responses.get(lang, no_text_responses["en"])
-
-    # Prefix result with spoken intro
+        return no_text.get(lang, no_text["en"])
+ 
     intros = {
-        "en": "The text reads: ",
-        "te": "టెక్స్ట్ ఇలా ఉంది: ",
-        "hi": "टेक्स्ट इस प्रकार है: "
+        "en": "Frame is aligned. I have read the text. It says: ",
+        "te": "ఫ్రేమ్ అలైన్ అయింది. నేను టెక్స్ట్ చదివాను. అది ఇలా చెప్తుంది: ",
+        "hi": "फ्रेम सही है। मैंने टेक्स्ट पढ़ लिया। यह कहता है: ",
     }
-
     return intros.get(lang, intros["en"]) + text
 
 def run_phone_registration(lang, name, phone):
-
-    print("   [Safety] 📱 Registering emergency contact...")
-
+    print("   [Safety] Registering emergency contact...")
+ 
+    from Module5.phone_register import register_contact
+    import re
+ 
+    # Strip non-digits for validation preview
+    digits_only = re.sub(r"\D", "", phone)
+ 
+    if len(digits_only) != 10:
+        invalid = {
+            "en": f"The phone number {phone} is not valid. It should be 10 digits. Please try again.",
+            "te": f"ఫోన్ నంబర్ {phone} చెల్లదు. 10 అంకెలు ఉండాలి. మళ్లీ చెప్పండి.",
+            "hi": f"फोन नंबर {phone} मान्य नहीं है। 10 अंक होने चाहिए। कृपया दोबारा बताएं।",
+        }
+        return invalid.get(lang, invalid["en"])
+ 
     result = register_contact(name, phone)
-
-    responses = {
-        "en": result,
-        "te": f"{name} అత్యవసర సంప్రదింపుగా నమోదు చేయబడింది.",
-        "hi": f"{name} को आपातकालीन संपर्क के रूप में जोड़ा गया है।"
+ 
+    success = {
+        "en": f"Done! {name} has been saved as an emergency contact with number {digits_only}.",
+        "te": f"అయింది! {name} ని {digits_only} నంబర్ తో అత్యవసర సంప్రదింపుగా సేవ్ చేసాను.",
+        "hi": f"हो गया! {name} को {digits_only} नंबर के साथ आपातकालीन संपर्क के रूप में सहेजा गया।",
     }
+    return success.get(lang, success["en"])
 
-    return responses.get(lang, responses["en"])
 
 def run_safety_emergency(lang):
 

@@ -12,8 +12,6 @@ SAFE_DISTANCE = 1.0
 # -------------------------------
 # Load YOLO Model
 # -------------------------------
-import os
-
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 PROJECT_ROOT = os.path.abspath(os.path.join(BASE_DIR, ".."))
 
@@ -31,7 +29,11 @@ MIN_BOX_HEIGHT = 100
 # -------------------------------
 # Detect obstacle from frame
 # -------------------------------
-def detect_obstacle_from_frame(frame):
+def detect_obstacle(frame):
+
+    if frame is None:
+        print("Frame error")
+        return False
 
     results = model(frame, verbose=False)[0]
 
@@ -64,23 +66,3 @@ def detect_obstacle_from_frame(frame):
             return True
 
     return False
-
-
-# -------------------------------
-# Capture frame from webcam
-# -------------------------------
-def detect_obstacle():
-
-    cap = cv2.VideoCapture(0)
-
-    ret, frame = cap.read()
-
-    cap.release()
-
-    if not ret:
-        print("Camera error")
-        return False
-
-    obstacle = detect_obstacle_from_frame(frame)
-
-    return obstacle

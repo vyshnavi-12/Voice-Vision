@@ -17,7 +17,11 @@ model = YOLO(MODEL_PATH)
 # -------------------------------
 # Detect objects from frame
 # -------------------------------
-def detect_objects_from_frame(frame):
+def detect_objects(frame):
+
+    if frame is None:
+        print("Frame error")
+        return []
 
     results = model(frame, verbose=False)[0]
 
@@ -41,22 +45,3 @@ def detect_objects_from_frame(frame):
         detected_objects.append(label)
 
     return list(set(detected_objects))
-
-
-# -------------------------------
-# Capture frame and detect
-# -------------------------------
-def detect_objects():
-
-    cap = cv2.VideoCapture(0)
-
-    ret, frame = cap.read()
-    cap.release()
-
-    if not ret:
-        print("Camera error")
-        return []
-
-    objects = detect_objects_from_frame(frame)
-
-    return objects

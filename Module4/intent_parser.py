@@ -203,7 +203,9 @@ class IntentParser:
             "recognize this face", "identify this person", "who am i looking at",
             "tell me who this is", "do you recognize him", "do you recognize her",
             "whose face is this", "who is standing here",
-            "who is standing in front of me", "who is this",
+            "who is standing in front of me", "who is this", "recognise this person",
+            "identify this face", "who is this face",
+            "can you recognise this person", "can you identify this person",
 
             # ---------------- TELUGU ----------------
             "ఇతను ఎవరు", "ఆమె ఎవరు", "నా ముందు ఎవరు ఉన్నారు",
@@ -222,7 +224,8 @@ class IntentParser:
                 # ENGLISH
                 "register this person", "save this face", "remember him", "save her face",
                 "register face", "store this person", "memorize face", "add to contacts",
-                "save identity", "register identity",
+                "save identity", "register identity","register this face", "register this person's face", "add this face to the system",
+                "save this person in the system", "remember this person's face",
                 
                 # TELUGU
                 "ee manishi ni gurthu pettuko", "face save cheyu", "register cheyi", "save cheyi",

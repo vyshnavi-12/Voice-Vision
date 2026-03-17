@@ -1,84 +1,50 @@
-import pvporcupine              # Wake-word detection engine (offline)
-import pyaudio                 # Microphone audio streaming
-import struct                  # Convert raw audio bytes to integers
-import os                      
+import pvporcupine
+import struct
+import os
+import numpy as np
 
 class WakeWordListener:
     def __init__(self):
-        # =========================================
-        # CONFIGURATION
-        # =========================================
-        # Picovoice access key
         self.ACCESS_KEY = os.getenv("PICOVOICE_ACCESS_KEY")
-
         BASE_DIR = os.path.dirname(os.path.abspath(__file__))
         PROJECT_ROOT = os.path.abspath(os.path.join(BASE_DIR, ".."))
 
-        # Wake word model path
         self.KEYWORD_PATH = os.path.join(
             PROJECT_ROOT,
             "models",
             "Hello-Vision_en_windows_v4_0_0.ppn"
         )
-        # Ensure wake-word model file exists
+
         if not os.path.exists(self.KEYWORD_PATH):
             raise FileNotFoundError(f"❌ Error: Could not find '{self.KEYWORD_PATH}'")
 
         try:
-            # Initialize Porcupine with custom wake word
             self.porcupine = pvporcupine.create(
                 access_key=self.ACCESS_KEY,
                 keyword_paths=[self.KEYWORD_PATH]
             )
-
-            # Initialize microphone audio stream
-            self.pa = pyaudio.PyAudio()
-            self.audio_stream = self.pa.open(
-                rate=self.porcupine.sample_rate,     # Required sample rate
-                channels=1,                          # Mono audio
-                format=pyaudio.paInt16,              # 16-bit Pulse Code Modulation(PCM)
-                input=True,
-                frames_per_buffer=self.porcupine.frame_length
-            )
         except Exception as e:
-            # Catch initialization errors (mic, key, model issues)
             raise RuntimeError(f"Failed to initialize Porcupine: {e}")
 
-    def listen(self):
-        """
-        Continuously listens to microphone input.
-        Returns True when the wake word ('Hello Vision') is detected.
-        """
-        try:
-            while True:
-                # Read raw audio frame from microphone
-                pcm = self.audio_stream.read(
-                    self.porcupine.frame_length,
-                    exception_on_overflow=False
-                )
+    def process_audio(self, pcm_bytes):
+        # 1. Safety check: Ensure even number of bytes for int16 conversion
+        if len(pcm_bytes) % 2 != 0:
+            pcm_bytes = pcm_bytes[:-1]
 
-                # Convert byte data to signed 16-bit integers
-                pcm = struct.unpack_from(
-                    "h" * self.porcupine.frame_length,
-                    pcm
-                )
-
-                # Run wake-word detection
-                keyword_index = self.porcupine.process(pcm)
-
-                # Wake word detected
-                if keyword_index >= 0:
-                    return True
-
-        except KeyboardInterrupt:
-            # Allow clean exit on Ctrl+C
-            return False
+        # 2. Convert raw bytes to 16-bit PCM (Shorts)
+        pcm = np.frombuffer(pcm_bytes, dtype=np.int16)
+        
+        # 3. Slide through the audio in 512-sample frames
+        frame_length = self.porcupine.frame_length
+        
+        for i in range(0, len(pcm) - frame_length, frame_length):
+            frame = pcm[i : i + frame_length]
+            result = self.porcupine.process(frame)
+            if result >= 0:
+                print("🔥 [WAKEWORD] Match found in audio stream!")
+                return True
+        return False
 
     def cleanup(self):
-        # Release system resources cleanly
         if hasattr(self, 'porcupine'):
             self.porcupine.delete()
-        if hasattr(self, 'audio_stream'):
-            self.audio_stream.close()
-        if hasattr(self, 'pa'):
-            self.pa.terminate()

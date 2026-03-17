@@ -15,15 +15,9 @@ model = YOLO(MODEL_PATH)
 # -----------------------------
 # DETECT CURRENCY FROM FRAME
 # -----------------------------
-def detect_currency():
+def detect_currency(frame):
 
-    cap = cv2.VideoCapture(0)
-
-    ret, frame = cap.read()
-
-    cap.release()
-
-    if not ret:
+    if frame is None:
         return None
 
     results = model(frame, conf=0.6, verbose=False)

@@ -9,7 +9,6 @@ class FaceRecognitionModule:
 
     def __init__(self, db_path=None):
 
-        # Ensure database is stored in project models folder
         BASE_DIR = os.path.dirname(os.path.abspath(__file__))
         PROJECT_ROOT = os.path.abspath(os.path.join(BASE_DIR, ".."))
 
@@ -30,6 +29,7 @@ class FaceRecognitionModule:
         if os.path.exists(self.db_path):
 
             with open(self.db_path, "rb") as f:
+
                 db = pickle.load(f)
 
                 self.known_encodings = db["encodings"]
@@ -38,6 +38,7 @@ class FaceRecognitionModule:
             print(f"✅ Face database loaded ({len(self.known_names)} faces)")
 
         else:
+
             self.known_encodings = []
             self.known_names = []
 
@@ -57,21 +58,14 @@ class FaceRecognitionModule:
 
     # ---------------- REGISTER NEW FACE ----------------
 
-    def register_new_face(self, person_name, num_samples=8):
-
-        cap = cv2.VideoCapture(0)
+    def register_new_face(self, person_name, frames, num_samples=8):
 
         collected = 0
         temp_encodings = []
 
         print(f"📸 Registering {person_name}...")
 
-        while collected < num_samples:
-
-            ret, frame = cap.read()
-
-            if not ret:
-                break
+        for frame in frames:
 
             rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
 
@@ -85,23 +79,11 @@ class FaceRecognitionModule:
 
                 collected += 1
 
-                cv2.putText(
-                    frame,
-                    f"Saving {collected}/{num_samples}",
-                    (50, 50),
-                    cv2.FONT_HERSHEY_SIMPLEX,
-                    1,
-                    (0, 255, 0),
-                    2
-                )
+                if collected >= num_samples:
+                    break
 
-            cv2.imshow("Register Face", frame)
-
-            if cv2.waitKey(1) & 0xFF == ord("q"):
+            if collected >= num_samples:
                 break
-
-        cap.release()
-        cv2.destroyAllWindows()
 
         if temp_encodings:
 
@@ -137,11 +119,11 @@ class FaceRecognitionModule:
 # PUBLIC FUNCTIONS FOR MODULE4
 # =========================================================
 
-def register_face(person_name):
+def register_face(person_name, frames):
 
     recognizer = FaceRecognitionModule()
 
-    success = recognizer.register_new_face(person_name)
+    success = recognizer.register_new_face(person_name, frames)
 
     if success:
         return f"{person_name} has been registered successfully."
@@ -149,17 +131,11 @@ def register_face(person_name):
     return "Face registration failed."
 
 
-def recognize_face():
+def recognize_face(frame):
 
     recognizer = FaceRecognitionModule()
 
-    cap = cv2.VideoCapture(0)
-
-    ret, frame = cap.read()
-
-    cap.release()
-
-    if not ret:
+    if frame is None:
         return "Camera capture failed."
 
     rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)

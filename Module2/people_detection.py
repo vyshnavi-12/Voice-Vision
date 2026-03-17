@@ -10,7 +10,7 @@ from dotenv import load_dotenv
 load_dotenv()
 genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
 
-model = genai.GenerativeModel("gemini-2.5-flash")
+gemini_model = genai.GenerativeModel("gemini-2.5-flash")
 
 # Load YOLO once
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -18,21 +18,17 @@ PROJECT_ROOT = os.path.abspath(os.path.join(BASE_DIR, ".."))
 
 MODEL_PATH = os.path.join(PROJECT_ROOT, "models", "yolov8x.pt")
 
-model = YOLO(MODEL_PATH)
+yolo_model = YOLO(MODEL_PATH)
 
 
 # -------------------- PEOPLE COUNT --------------------
 
-def count_people():
+def count_people(frame):
 
-    cap = cv2.VideoCapture(0)
-    ret, frame = cap.read()
-    cap.release()
+    if frame is None:
+        return -1
 
-    if not ret:
-        return -1   # camera error
-
-    results = model(frame, verbose=False)[0]
+    results = yolo_model(frame, verbose=False)[0]
 
     people_count = 0
 
@@ -48,13 +44,9 @@ def count_people():
 
 # -------------------- PERSON DESCRIPTION --------------------
 
-def describe_person():
+def describe_person(frame):
 
-    cap = cv2.VideoCapture(0)
-    ret, frame = cap.read()
-    cap.release()
-
-    if not ret:
+    if frame is None:
         return "Camera capture failed."
 
     try:
@@ -75,7 +67,7 @@ def describe_person():
             "Mention clothing or appearance only briefly."
         )
 
-        response = model.generate_content([prompt, image_part])
+        response = gemini_model.generate_content([prompt, image_part])
 
         return response.text.strip()
 

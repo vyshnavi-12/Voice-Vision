@@ -59,17 +59,11 @@ def analyze_scene(frame):
 
 
 # -------------------------------
-# Capture Frame + Analyze
+# Scene Description (Frame from frontend)
 # -------------------------------
-def describe_scene():
+def describe_scene(frame):
 
-    cap = cv2.VideoCapture(0)
-
-    ret, frame = cap.read()
-
-    cap.release()
-
-    if not ret:
+    if frame is None:
         return "Camera capture failed."
 
     description = analyze_scene(frame)

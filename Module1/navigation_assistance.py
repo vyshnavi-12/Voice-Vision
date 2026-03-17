@@ -61,17 +61,11 @@ def find_object(frame, target_object):
 
 
 # -------------------------------
-# Capture Frame + Navigate
+# Navigate using frame from frontend
 # -------------------------------
-def navigate_to_object(target_object):
+def navigate_to_object(frame, target_object):
 
-    cap = cv2.VideoCapture(0)
-
-    ret, frame = cap.read()
-
-    cap.release()
-
-    if not ret:
+    if frame is None:
         return "Camera capture failed."
 
     guidance = find_object(frame, target_object)
