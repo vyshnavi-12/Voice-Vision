@@ -6,23 +6,22 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# Setup paths relative to this file
+# Set up file paths for contacts and encryption key
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DB_FILE = os.path.join(BASE_DIR, "secure_contacts.json")
 KEY_FILE = os.path.join(BASE_DIR, "secret.key")
 
 FAST2SMS_API_KEY = os.getenv("FAST2SMS_API_KEY")
 
-# ---------- LOAD ENCRYPTION KEY ----------
+# Load encryption key to decrypt stored phone numbers
 if not os.path.exists(KEY_FILE):
-    # Instead of crashing, we log this for the backend console
     print("❌ ERROR: Encryption key (secret.key) not found in Module5 folder.")
     cipher_suite = None
 else:
     with open(KEY_FILE, "rb") as kf:
         cipher_suite = Fernet(kf.read())
 
-# ---------- LOAD CONTACTS ----------
+# Read all saved emergency contacts from the database
 def load_contacts():
     if not os.path.exists(DB_FILE):
         return []
@@ -33,28 +32,30 @@ def load_contacts():
         print(f"Error loading contacts: {e}")
         return []
 
-# ---------- DECRYPT PHONE ----------
+# Decrypt an encrypted phone number
 def decrypt_phone(encrypted_phone):
     if cipher_suite is None:
-        return encrypted_phone # Fallback if key is missing
+        return encrypted_phone
     decrypted = cipher_suite.decrypt(encrypted_phone.encode()).decode()
     return decrypted
 
-# ---------- GET ALL CARETAKERS ----------
+# Get phone numbers of all emergency caretakers
 def get_all_caretakers():
     contacts = load_contacts()
     numbers = []
     for entry in contacts:
         if entry.get("type") == "caretaker":
+            # Decrypt the phone number
             numbers.append(decrypt_phone(entry["phone"]))
     return numbers
 
-# ---------- SEND SMS ----------
+# Send SMS message to emergency contacts using Fast2SMS API
 def send_sms(phone_numbers, message):
     if not phone_numbers:
         print("⚠️ No phone numbers found to send SMS.")
         return
 
+    # Combine all phone numbers into a comma-separated list
     numbers_string = ",".join(phone_numbers)
     url = "https://www.fast2sms.com/dev/bulkV2"
 
@@ -66,33 +67,31 @@ def send_sms(phone_numbers, message):
         "numbers": numbers_string
     }
 
+    # Add API key to headers
     headers = {
         "authorization": FAST2SMS_API_KEY,
         "Content-Type": "application/x-www-form-urlencoded"
     }
 
     try:
+        # Send the SMS request
         response = requests.post(url, data=payload, headers=headers)
         print("SMS API response:")
         print(response.text)
     except Exception as e:
         print(f"Failed to connect to SMS API: {e}")
 
-# ---------- EMERGENCY FUNCTION ----------
 
+# Send emergency alert SMS with location to all caretakers
 def trigger_emergency(location=None):
-    """
-    Called after the Frontend captures GPS.
-    Fast path: Decrypts numbers and sends the map link immediately.
-    """
     print(" [Emergency] 🆘 Emergency command received. Processing SMS alert.")
     
+    # Get all emergency contact phone numbers
     numbers = get_all_caretakers()
     if not numbers:
         return "No caretaker contacts registered."
 
-    # Standard Google Maps URL format for mobile accessibility
-    # Accepts both 'latitude' (from app.py) and 'lat' (from direct calls)
+    # Create Google Maps URL with user's location
     lat = location.get("latitude") or location.get("lat")
     lon = location.get("longitude") or location.get("lon")
 
@@ -101,7 +100,9 @@ def trigger_emergency(location=None):
     else:
         maps_url = "Location not available"
 
+    # Create emergency message with location
     message = f"Emergency Alert!\n\nThe user needs assistance.\n\nLive Location:\n{maps_url}"
     
+    # Send SMS to all caretakers
     send_sms(numbers, message)
     return "Sucess"
