@@ -114,7 +114,7 @@ def register_face(person_name, frames):
     success = recognizer.register_new_face(person_name, frames)
 
     if success:
-        return f"Success."
+        return f"Success"
 
     return "Face registration failed."
 

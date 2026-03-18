@@ -218,7 +218,10 @@ export default function HomeScreen() {
       let photoBase64: string | null = null;
       if (cameraRef.current) {
         try {
-          const photo = await cameraRef.current.takePictureAsync({ base64: true, quality: 0.3 });
+          const photo = await cameraRef.current.takePictureAsync({ 
+            base64: true, 
+            quality: isAwake ? 0.8 : 0.3   // high quality when processing commands
+          });
           photoBase64 = photo?.base64 ?? null;
         } catch {}
       }
@@ -271,20 +274,23 @@ export default function HomeScreen() {
 
       }
 
-      // If user requested emergency - send their GPS location to backend
-      if (data.intent === 'EMERGENCY_REQUESTED') {
+      // AFTER — only fires after user confirms who to send to (needs_more_info is false)
+      if (data.intent === 'EMERGENCY_REQUESTED' && !data.needs_more_info) {
         try {
           const loc = await Location.getCurrentPositionAsync({});
-          await fetch(`${BACKEND_URL}/trigger_emergency`, {
+          const emergRes = await fetch(`${BACKEND_URL}/trigger_emergency`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               location: { latitude: loc.coords.latitude, longitude: loc.coords.longitude },
             }),
           });
+          if (emergRes.ok) {
+            const emergData = await emergRes.json();
+            if (emergData.audio) await playAudioFromB64(emergData.audio);
+          }
         } catch (e) { console.log("Emergency GPS error:", e); }
       }
-
     } catch (e) {
       console.log("Backend communication error:", e);
     } finally {
@@ -327,11 +333,12 @@ export default function HomeScreen() {
     } finally {
       try {
         await Audio.setAudioModeAsync({
-          allowsRecordingIOS:      true,
-          playsInSilentModeIOS:    true,
+          allowsRecordingIOS: true,
+          playsInSilentModeIOS: true,
           staysActiveInBackground: true,
-          shouldDuckAndroid:       false,
+          shouldDuckAndroid: false,
         });
+        await new Promise(r => setTimeout(r, 300)); // wait for iOS session to activate
       } catch {}
       try { await FileSystem.deleteAsync(tmpPath, { idempotent: true }); } catch {}
       // Restart timer after audio finishes so user has a fresh 10 seconds to speak

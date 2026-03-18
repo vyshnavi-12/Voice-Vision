@@ -254,22 +254,41 @@ def run_phone_registration(lang, name, phone):
             "hi": f"फोन नंबर {phone} मान्य नहीं है। 10 अंक होने चाहिए। कृपया दोबारा बताएं।",
         }.get(lang, f"The phone number {phone} is not valid. It should be 10 digits. Please try again.")
 
-def run_safety_emergency(lang, location=None):
+def run_safety_emergency(lang, location=None, user_text=None):
     print("   [Emergency] 🆘 Emergency command detected")
 
-    result = trigger_emergency(location)
+    from Module5.emergency import extract_target_from_command
 
-    if result == "Sucess":  # matches the exact string returned by emergency.py
-        return {
-            "en": "Emergency alert has been sent to your caretakers.",
-            "te": "మీ అత్యవసర సందేశం మీ కేర్‌టేకర్లకు పంపబడింది.",
-            "hi": "आपातकालीन संदेश आपके संपर्कों को भेज दिया गया है।",
-        }.get(lang, "Emergency alert has been sent to your caretakers.")
+    if location is not None:
+        # GPS received — now actually send the SMS
+        target = extract_target_from_command(user_text) if user_text else None
+        result = trigger_emergency(location, target=target)
+
+        if result == "Sucess":
+            if target and target != "all":
+                return {
+                    "en": f"Emergency alert has been sent to {target}.",
+                    "te": f"అత్యవసర హెచ్చరిక {target} కి పంపబడింది.",
+                    "hi": f"आपातकालीन संदेश {target} को भेज दिया गया है।",
+                }.get(lang, f"Emergency alert has been sent to {target}.")
+            else:
+                return {
+                    "en": "Emergency alert has been sent to all your caretakers.",
+                    "te": "అత్యవసర హెచ్చరిక మీ అందరు కేర్‌టేకర్లకు పంపబడింది.",
+                    "hi": "आपातकालीन संदेश सभी संपर्कों को भेज दिया गया।",
+                }.get(lang, "Emergency alert has been sent to all your caretakers.")
+        else:
+            return {
+                "en": "No emergency contacts found. Please register a caretaker first.",
+                "te": "అత్యవసర సంప్రదింపులు లేవు. ముందు కేర్‌టేకర్ నంబర్ నమోదు చేయండి.",
+                "hi": "कोई संपर्क नहीं मिला। पहले केयरटेकर नंबर दर्ज करें।",
+            }.get(lang, "No emergency contacts found. Please register a caretaker first.")
 
     else:
-        # trigger_emergency returned "No caretaker contacts registered."
+        # No GPS yet — ask for confirmation BEFORE sending anything
+        # Frontend will show this as a follow-up question
         return {
-            "en": "No emergency contacts found. Please register a caretaker contact first.",
-            "te": "అత్యవసర సంప్రదింపులు కనుగొనబడలేదు. ముందు కేర్‌టేకర్ నంబర్ నమోదు చేయండి.",
-            "hi": "कोई आपातकालीन संपर्क नहीं मिला। पहले एक केयरटेकर नंबर दर्ज करें।",
-        }.get(lang, "No emergency contacts found. Please register a caretaker contact first.")
+            "en": "Who should I alert? Say a name, or say all caretakers.",
+            "te": "ఎవరికి హెచ్చరిక పంపాలి? ఒక పేరు చెప్పండి, లేదా అందరికి అని చెప్పండి.",
+            "hi": "किसे सूचित करूं? कोई नाम बताएं, या सभी केयरटेकर कहें।",
+        }.get(lang, "Who should I alert? Say a name, or say all caretakers.")

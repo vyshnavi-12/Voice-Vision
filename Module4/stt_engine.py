@@ -69,7 +69,8 @@ class WhisperSTT:
                 language=self.language,
                 task="transcribe",
                 vad_filter=True, # This ignores silences automatically
-                condition_on_previous_text=False # Keeps each command independent
+                condition_on_previous_text=False, # Keeps each command independent
+                initial_prompt="chair, door, table, bottle, cup, phone, book, bag, person, exit"
             )
 
             # Join all detected text fragments into one single string

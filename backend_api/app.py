@@ -102,13 +102,38 @@ def trigger_emergency():
         location = data.get('location')
         if not location:
             return jsonify({"status": "error", "message": "No location"}), 400
-        
-        # Calling my emergency module to send the SMS
-        from Module5.emergency import trigger_emergency_sms
-        trigger_emergency_sms(location)
-        return jsonify({"status": "emergency_sent"})
+ 
+        # Get the original command text so we know who to send to
+        from Module4.main import last_emergency_text
+        from Module5.emergency import extract_target_from_command, trigger_emergency as _trigger
+ 
+        target = extract_target_from_command(last_emergency_text)
+ 
+        # Build location URL message
+        lat = location.get("latitude")
+        lon = location.get("longitude")
+        maps_url = f"https://www.google.com/maps?q={lat},{lon}" if lat and lon \
+                   else "Location not available"
+ 
+        result = _trigger(location=location, target=target)
+ 
+        if target and target != "all":
+            msg = f"Emergency alert sent to {target}."
+        else:
+            msg = "Emergency alert sent to all caretakers."
+ 
+        audio = _tts.speak_to_bytes(msg)
+        audio_b64 = base64.b64encode(audio).decode('utf-8') if audio else None
+ 
+        return jsonify({
+            "status": "emergency_sent",
+            "audio":  audio_b64,
+            "target": target or "all",
+        })
+ 
     except Exception as e:
         print(f"Emergency trigger error: {e}")
+        import traceback; traceback.print_exc()
         return jsonify({"status": "error"}), 500
 
 

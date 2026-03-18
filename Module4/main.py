@@ -26,6 +26,8 @@ pending_info_type  = None
 pending_extra_data = {}   # Keeps track of gathered info (like names/phones) across multiple turns
 pending_frame      = None
 
+last_emergency_text = ""
+
 # Keywords to detect if the OCR module is giving "Move camera" instructions
 GUIDANCE_KEYWORDS = [
     "move the camera", "closer to", "camera to the",
@@ -104,6 +106,8 @@ def handle_interaction_logic(audio_bytes, frame=None, current_lang="en", is_awak
     user_text = stt.transcribe(audio_bytes)
     if not user_text or user_text.strip() == "":
         obstacle_detection_enabled = True
+        if pending_intent is not None:
+            return None, "IDLE", False, False  # still waiting, don't reset
         return None, "UNKNOWN", False, False
 
     print(f"Transcribed: {user_text}")
@@ -165,6 +169,7 @@ def process_command(user_text, current_lang, frame=None,
                     extra_data=None, location=None,
                     force_intent=None, intent_hint=None):
     global obstacle_detection_enabled
+    global last_emergency_text
 
     # Determine what the user wants to do
     if force_intent:
@@ -244,7 +249,26 @@ def process_command(user_text, current_lang, frame=None,
         response_text = modules.run_ocr_module(current_lang, frame)
 
     elif intent == "EMERGENCY":
-        response_text = modules.run_safety_emergency(current_lang, location)
+        if extra_data and "emergency_target" in extra_data:
+            # Turn 2: user confirmed who to send to
+            # Store their answer so /trigger_emergency can use it
+            last_emergency_text = extra_data["emergency_target"]
+            response_text = {
+                "en": "Got it. Sending emergency alert now.",
+                "te": "సరే. ఇప్పుడు అత్యవసర హెచ్చరిక పంపిస్తున్నాను.",
+                "hi": "ठीक है। अभी आपातकालीन संदेश भेज रहा हूँ।",
+            }.get(current_lang, "Got it. Sending emergency alert now.")
+            # No needs_more_info — frontend will now fetch GPS and call /trigger_emergency
+        else:
+            # Turn 1: ask who to send to
+            last_emergency_text = user_text  # save original command as fallback
+            response_text = {
+                "en": "Who should I alert? Say a name, or say all caretakers.",
+                "te": "ఎవరికి హెచ్చరిక పంపాలి? ఒక పేరు చెప్పండి, లేదా అందరికి అని చెప్పండి.",
+                "hi": "किसे सूचित करूं? कोई नाम बताएं, या सभी केयरटेकर कहें।",
+            }.get(current_lang, "Who should I alert? Say a name, or say all caretakers.")
+            needs_more_info  = True
+            info_needed_type = "emergency_target"
 
     elif intent == "REGISTER_CONTACT":
         if extra_data and "name" in extra_data and "phone" in extra_data:
