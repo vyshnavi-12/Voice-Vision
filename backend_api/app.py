@@ -117,7 +117,7 @@ def check_ocr():
 
         # Quick alignment check before running heavy OCR
         from Module3.ocr import get_text_bounding_box
-        from Module4.guidance import GuidanceSystem
+        from backend_api.guidance import GuidanceSystem
 
         guidance_system = GuidanceSystem()
         guidance_system.update_frame_dims(frame)

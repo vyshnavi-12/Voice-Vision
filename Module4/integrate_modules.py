@@ -193,7 +193,7 @@ def run_ocr_module(lang, frame):
     print("   [OCR] Running OCR on mobile frame...")
  
     from Module3.ocr import run_ocr, get_text_bounding_box
-    from Module4.guidance import GuidanceSystem
+    from backend_api.guidance import GuidanceSystem
  
     if frame is None:
         no_frame = {

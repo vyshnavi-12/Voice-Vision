@@ -8,7 +8,7 @@ from Module4.intent_parser import IntentParser
 from Module4.stt_engine import WhisperSTT
 from Module4.tts_engine import TextToSpeech
 from Module4.wakeword import WakeWordListener
-from Module4.guidance import GuidanceSystem
+from backend_api.guidance import GuidanceSystem
 
 # Initializing all the core engines
 parser      = IntentParser()
