@@ -17,15 +17,19 @@ class WhisperSTT:
     def __init__(self, language="en"):
 
         print("-------------------------------------------------------")
+        # Just a log to show which model size we are loading (small is the sweet spot)
         print(f"⏳ Loading Whisper Model ({OFFLINE_MODEL_SIZE})")
 
         self.language = language
 
+        # Logic to check if we have a GPU (CUDA) or just the CPU
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
+        # If GPU, use float16 for speed; if CPU, use int8 to save memory
         self.compute_type = "float16" if self.device == "cuda" else "int8"
 
         print(f"🚀 Device: {self.device} | compute: {self.compute_type}")
 
+        # Initializing the actual Faster-Whisper model
         self.model = WhisperModel(
             OFFLINE_MODEL_SIZE,
             device=self.device,
@@ -37,7 +41,7 @@ class WhisperSTT:
 
 
     def set_language(self, new_language):
-
+        # Dynamically change language (good for multi-lingual support)
         self.language = new_language
         print(f"🌐 Language switched to: {self.language}")
 
@@ -55,17 +59,20 @@ class WhisperSTT:
 
             print("⚡ Transcribing with Whisper...")
 
+            # Wrap the raw bytes into a file-like object so Whisper can read it
             wav_data = io.BytesIO(audio_bytes)
 
+            # The actual conversion happens here
             segments, info = self.model.transcribe(
                 wav_data,
-                beam_size=5,
+                beam_size=5, # Higher beam size = better accuracy but slower
                 language=self.language,
                 task="transcribe",
-                vad_filter=True,
-                condition_on_previous_text=False
+                vad_filter=True, # This ignores silences automatically
+                condition_on_previous_text=False # Keeps each command independent
             )
 
+            # Join all detected text fragments into one single string
             text = " ".join([segment.text for segment in segments])
 
             if text.strip():

@@ -2,7 +2,7 @@ import time
 import sys
 import os
 
-# Add project root to Python path
+# Making sure the system can see all my sub-folders (Module1, Module2, etc.)
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from Module1.object_detection import detect_objects
@@ -23,7 +23,7 @@ from Module3.ocr import run_ocr
 print(" [System] 🚀 Assistive AI Hub: Multi-Module Integration Loaded (Mock Mode)")
 
 def get_lang_msg(responses, lang_code):
-    """Helper to select the correct language string."""
+    # Quick helper to grab the right translation based on the user's setting
     if "te" in lang_code: return responses['te']
     elif "hi" in lang_code: return responses['hi']
     return responses['en']
@@ -31,19 +31,17 @@ def get_lang_msg(responses, lang_code):
 # --- 2. CORE MODULES  ---
 
 def run_currency_detection(lang, frame):
-
+    # Logic for identifying rupee notes
     print("   [Currency] 💰 Running currency detection...")
 
     currency = detect_currency(frame)
 
     if not currency:
-
         responses = {
             "en": "I cannot detect any currency note.",
             "te": "నాకు కరెన్సీ నోటు కనిపించలేదు.",
             "hi": "मुझे कोई मुद्रा नोट दिखाई नहीं दे रहा है।"
         }
-
         return responses.get(lang, responses["en"])
 
     responses = {
@@ -55,41 +53,35 @@ def run_currency_detection(lang, frame):
     return responses.get(lang, responses["en"])
 
 def run_realtime_scene_description(lang, frame):
-
+    # Generates a natural language summary of what the camera sees
     print("   [Vision] 🌎 Running scene description...")
-
     description = describe_scene(frame)
-
     return description
 
 def run_object_detection(lang, frame):
-
+    # Lists out specific objects found in the frame
     print("   [Vision] 🔍 Running object detection...")
 
     objects = detect_objects(frame)
 
     if not objects:
-
         responses = {
             "en": "I do not see any objects nearby.",
             "te": "నా ముందు ఎలాంటి వస్తువులు కనిపించలేదు.",
             "hi": "मुझे कोई वस्तु दिखाई नहीं दे रही है।"
         }
-
         return responses.get(lang, responses["en"])
 
     elif len(objects) == 1:
-
         responses = {
             "en": f"There is a {objects[0]} in front of you.",
             "te": f"మీ ముందు ఒక {objects[0]} ఉంది.",
             "hi": f"आपके सामने एक {objects[0]} है।"
         }
-
         return responses.get(lang, responses["en"])
 
     else:
-
+        # Formatting a list like "A, B and C" for better speech flow
         object_list = ", ".join(objects[:-1]) + " and " + objects[-1]
 
         responses = {
@@ -97,47 +89,37 @@ def run_object_detection(lang, frame):
             "te": f"మీ ముందు {object_list} ఉన్నాయి.",
             "hi": f"आपके सामने {object_list} हैं।"
         }
-
         return responses.get(lang, responses["en"])
 
 def run_obstacle_detection(frame):
-
+    # Safety first: check if the user is about to walk into something
     obstacle = detect_obstacle(frame)
-
     return obstacle
 
 def run_navigation_assistance(lang, frame, target_object):
-
+    # Provides directional guidance (Left, Right, Straight)
     print("   [Navigation] 🧭 Running navigation assistance...")
-
     guidance = navigate_to_object(frame, target_object)
-
     return guidance
 
 def run_people_count(lang, frame):
-
+    # Specifically for counting how many humans are present
     print("   [People] 👥 Counting people...")
-
     count = count_people(frame)
 
     if count == 0:
-
         responses = {
             "en": "I do not see anyone.",
             "te": "నాకు ఎవరూ కనిపించలేదు.",
             "hi": "मुझे कोई व्यक्ति दिखाई नहीं दे रहा है।"
         }
-
     elif count == 1:
-
         responses = {
             "en": "There is one person in front of you.",
             "te": "మీ ముందు ఒక వ్యక్తి ఉన్నాడు.",
             "hi": "आपके सामने एक व्यक्ति है।"
         }
-
     else:
-
         responses = {
             "en": f"There are {count} people in front of you.",
             "te": f"మీ ముందు {count} మంది వ్యక్తులు ఉన్నారు.",
@@ -147,31 +129,25 @@ def run_people_count(lang, frame):
     return responses.get(lang, responses["en"])
 
 def run_people_description(lang, frame):
-
+    # Describe clothing, gender, or age of the person
     print("   [People] 🧑 Describing person...")
-
     message = describe_person(frame)
-
     return message
 
 def run_face_recognition(lang, frame):
-
+    # Compare detected face against our saved database
     print("   [Face] 👤 Running face recognition...")
-
     message = recognize_face(frame)
 
     if "Unknown" in message or "do not" in message:
-
         responses = {
             "en": message,
             "te": "ఈ వ్యక్తిని నేను గుర్తించలేకపోతున్నాను.",
             "hi": "मैं इस व्यक्ति को पहचान नहीं पा रहा हूँ।"
         }
-
     else:
-
+        # Extract name and build a friendly sentence
         name = message.split()[0]
-
         responses = {
             "en": f"{name} is standing in front of you.",
             "te": f"{name} మీ ముందు నిలబడి ఉన్నారు.",
@@ -181,6 +157,7 @@ def run_face_recognition(lang, frame):
     return responses.get(lang, responses["en"])
 
 def run_face_registration(lang, name, frame):
+    # Saving a new face so we can recognize them next time
     print("   [Face] 📸 Registering new face...")
 
     if frame is None:
@@ -192,7 +169,7 @@ def run_face_registration(lang, name, frame):
         return responses.get(lang, responses["en"])
 
     try:
-        message = register_face(name, [frame])   # ← [frame] not frame
+        message = register_face(name, [frame]) 
     except Exception as e:
         print(f"Face registration error: {e}")
         return "Face registration failed. Please make sure your face is clearly visible."
@@ -212,6 +189,7 @@ def run_face_registration(lang, name, frame):
     return responses.get(lang, responses["en"])
 
 def run_ocr_module(lang, frame):
+    # Reading text from books, bills, or signs
     print("   [OCR] Running OCR on mobile frame...")
  
     from Module3.ocr import run_ocr, get_text_bounding_box
@@ -225,7 +203,7 @@ def run_ocr_module(lang, frame):
         }
         return no_frame.get(lang, no_frame["en"])
  
-    # Step 1: check alignment using GuidanceSystem
+    # Check if the paper is centered before wasting CPU on OCR
     guidance_system = GuidanceSystem()
     guidance_system.update_frame_dims(frame)
     text_box  = get_text_bounding_box(frame)
@@ -233,9 +211,9 @@ def run_ocr_module(lang, frame):
  
     if guide_msg != "OK":
         print(f"   [OCR] Guidance needed: {guide_msg}")
-        return guide_msg   # detected as guidance by keyword check in main.py
+        return guide_msg 
  
-    # Step 2: frame aligned — run OCR
+    # Frame is perfect, now extract the text
     print("   [OCR] Frame aligned — running full OCR...")
     text = run_ocr(frame)
  
@@ -255,12 +233,13 @@ def run_ocr_module(lang, frame):
     return intros.get(lang, intros["en"]) + text
 
 def run_phone_registration(lang, name, phone):
+    # Linking a name to a phone number for emergency SOS
     print("   [Safety] Registering emergency contact...")
  
     from Module5.phone_register import register_contact
     import re
  
-    # Strip non-digits for validation preview
+    # Cleaning up the input to ensure it's just numbers
     digits_only = re.sub(r"\D", "", phone)
  
     if len(digits_only) != 10:
@@ -280,9 +259,8 @@ def run_phone_registration(lang, name, phone):
     }
     return success.get(lang, success["en"])
 
-
 def run_safety_emergency(lang):
-
+    # The SOS trigger—contacts the caretakers immediately
     print("   [Emergency] 🆘 Emergency command detected")
 
     trigger_emergency()
@@ -294,4 +272,3 @@ def run_safety_emergency(lang):
     }
 
     return get_lang_msg(res, lang)
-

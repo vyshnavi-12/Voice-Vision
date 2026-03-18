@@ -14,18 +14,20 @@ class IntentParser:
     """
 
     def __init__(self):
+        # Loading the multilingual model that understands English, Telugu, and Hindi
         print(" 🧠 Loading Multilingual Semantic Brain...")
         
-        # Point to the folder you created with the download script
         BASE_DIR = os.path.dirname(os.path.abspath(__file__))
         PROJECT_ROOT = os.path.abspath(os.path.join(BASE_DIR, ".."))
 
+        # Looking for the local folder where the MPNet model is stored
         local_model_path = os.path.join(
             PROJECT_ROOT,
             "models",
             "paraphrase-multilingual-mpnet-base-v2"
         )
 
+        # Crash early if the model isn't downloaded yet
         if not os.path.exists(local_model_path):
             raise FileNotFoundError(
                 f"❌ Error: Could not find model at {local_model_path}.\n"
@@ -35,7 +37,7 @@ class IntentParser:
         self.model = SentenceTransformer(local_model_path)
 
         # -------------------------------
-        # Intent Bank (Same as Runtime)
+        # Intent Bank: This is where I define what the AI should listen for
         # -------------------------------
         self.intent_bank = {
             "CURRENCY_DETECTION": [
@@ -176,7 +178,7 @@ class IntentParser:
                 # HINDI
                 "rasta batao", "exit kahan hai", "rasta dikhao", "navigation karo", "guide karo",
                 "रास्ता बताओ", "एग्जिट कहाँ है", "रास्ता दिखाओ", "नेविगेशन करो", "गाइड करो",
-                "मार्गदर्शन दो", "एस्केप रूट"
+                "मार्गदर्शन दो", "एस्కేప్ రూట్"
             ],
 
             "OCR": [
@@ -310,11 +312,12 @@ class IntentParser:
         }
 
         # -------------------------------
-        # Precompute embeddings
+        # Precompute embeddings: Turning text into numbers (vectors) before the app starts
         # -------------------------------
         self.corpus_embeddings = {}
 
         for intent, phrases in self.intent_bank.items():
+            # Convert every phrase in the bank into a normalized vector
             self.corpus_embeddings[intent] = self.model.encode(
                 phrases,
                 convert_to_tensor=True,
@@ -335,7 +338,7 @@ class IntentParser:
 
         text = text.lower().strip()
 
-        # Encode user input
+        # Step 1: Turn the user's spoken text into a vector
         user_embedding = self.model.encode(
             text,
             convert_to_tensor=True,
@@ -345,26 +348,28 @@ class IntentParser:
         best_intent = "UNKNOWN"
         best_score = 0.0
 
-        # Compute similarity against each intent bank
+        # Step 2: Compare user vector against all my saved intent vectors
         for intent, intent_vectors in self.corpus_embeddings.items():
+            # Using Cosine Similarity to find how close the meanings are
             cosine_scores = util.cos_sim(user_embedding, intent_vectors)
             score = torch.max(cosine_scores).item()
 
+            # Keep track of the intent with the highest similarity score
             if score > best_score:
                 best_score = score
                 best_intent = intent
 
         print(f"🧠 '{text}' → {best_intent} ({best_score:.3f})")
 
-        # Prevent accidental STOP detection from short phrases
+        # Logic to make sure a long sentence doesn't accidentally trigger "STOP"
         if best_intent == "STOP" and len(text.split()) > 2:
             return ("UNKNOWN", None)
 
-        # -------- Threshold Check --------
+        # If the highest score is too low (meaning we aren't sure), return UNKNOWN
         if best_score < 0.45:
             return ("UNKNOWN", None)
 
-        # -------- Language Switching Logic --------
+        # Special logic to find WHICH language the user wants to switch to
         if best_intent == "SWITCH_LANGUAGE":
 
             if any(word in text for word in ["telugu", "తెలుగు"]):
@@ -377,9 +382,6 @@ class IntentParser:
                 return ("SWITCH_LANGUAGE", "en")
 
             else:
-                # Switch intent detected but no clear target
                 return ("SWITCH_LANGUAGE", None)
 
-        # -------- Normal Intent --------
         return (best_intent, None)
-

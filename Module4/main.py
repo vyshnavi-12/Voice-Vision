@@ -10,31 +10,36 @@ from Module4.tts_engine import TextToSpeech
 from Module4.wakeword import WakeWordListener
 from Module4.guidance import GuidanceSystem
 
+# Initializing all the core engines
 parser      = IntentParser()
 stt         = WhisperSTT()
 tts         = TextToSpeech()
 ww_listener = WakeWordListener()
 guidance    = GuidanceSystem()
 
+# Obstacle detection should run by default unless the AI is talking to the user
 obstacle_detection_enabled = True
 
-# ── Follow-up state ────────────────────────────────────────────────────────────
+# ── Follow-up state: This remembers if we are in the middle of a conversation ──
 pending_intent     = None
 pending_info_type  = None
-pending_extra_data = {}   # accumulates answers across turns — must NOT be reset between turns
+pending_extra_data = {}   # Keeps track of gathered info (like names/phones) across multiple turns
 pending_frame      = None
 
+# Keywords to detect if the OCR module is giving "Move camera" instructions
 GUIDANCE_KEYWORDS = [
     "move the camera", "closer to", "camera to the",
     "tilt the camera", "bring the camera",
 ]
 
 def _is_guidance_response(text):
+    # Check if the response is a camera adjustment instruction
     if not text:
         return False
     return any(kw in text.lower() for kw in GUIDANCE_KEYWORDS)
 
 def reset_pending_state():
+    # Clear the memory of the current conversation thread
     global pending_intent, pending_info_type, pending_extra_data, pending_frame
     pending_intent     = None
     pending_info_type  = None
@@ -43,6 +48,7 @@ def reset_pending_state():
     print("Pending state cleared.")
 
 def check_internet():
+    # Decide between Cloud Scene Description or Local Object Detection
     try:
         requests.get("https://www.google.com", timeout=3)
         return True
@@ -50,6 +56,7 @@ def check_internet():
         return False
 
 def process_obstacle_check(frame):
+    # Background safety loop: returns "alert" if a collision is imminent
     global obstacle_detection_enabled
     if not obstacle_detection_enabled:
         return None
@@ -57,6 +64,7 @@ def process_obstacle_check(frame):
     return "alert" if obstacle else None
 
 def decode_to_pcm16(audio_bytes):
+    # Porcupine needs 16kHz mono audio, so we convert the mobile stream here
     try:
         from pydub import AudioSegment
         audio = AudioSegment.from_file(io.BytesIO(audio_bytes))
@@ -66,18 +74,18 @@ def decode_to_pcm16(audio_bytes):
         print(f"PCM decode error: {e}")
         return None
 
-# ── handle_interaction_logic ───────────────────────────────────────────────────
-# Returns: (audio_bytes, intent, needs_more_info, ocr_needs_guidance)
+# ── handle_interaction_logic: The heart of the interaction ──
 def handle_interaction_logic(audio_bytes, frame=None, current_lang="en", is_awake=False):
     global obstacle_detection_enabled
     global pending_intent, pending_info_type, pending_extra_data, pending_frame
 
-    # ── SLEEPING: Porcupine checks for wake word ──────────────────────────────
+    # ── SLEEPING: Only listening for the Wake Word (Porcupine) ────────────────
     if not is_awake:
         pcm_bytes = decode_to_pcm16(audio_bytes)
         if pcm_bytes is None:
             return None, "IDLE", False, False
         if ww_listener.process_audio(pcm_bytes):
+            # Wake word heard: stop background scanning and get ready for command
             obstacle_detection_enabled = False
             reset_pending_state()
             listening_msgs = {
@@ -90,7 +98,7 @@ def handle_interaction_logic(audio_bytes, frame=None, current_lang="en", is_awak
             return tts.speak_to_bytes(msg), "WAKE_WORD_DETECTED", False, False
         return None, "IDLE", False, False
 
-    # ── AWAKE: transcribe with Whisper ────────────────────────────────────────
+    # ── AWAKE: Listen to full command with Whisper ────────────────────────────
     obstacle_detection_enabled = False
 
     user_text = stt.transcribe(audio_bytes)
@@ -100,19 +108,19 @@ def handle_interaction_logic(audio_bytes, frame=None, current_lang="en", is_awak
 
     print(f"Transcribed: {user_text}")
 
-    # ── FOLLOW-UP: pending state → treat transcription as the answer ──────────
+    # ── FOLLOW-UP: If we asked a question (e.g., 'What is the name?'), handle the reply ──
     if pending_intent is not None:
         answer = user_text.strip().rstrip('!?.').strip()
         print(f"Follow-up answer: '{answer}' for '{pending_info_type}'")
 
-        # ── KEY FIX: accumulate into existing extra_data, do NOT reset ────────
+        # Accumulate the new answer into our memory bank
         pending_extra_data[pending_info_type] = answer
 
         intent_to_run = pending_intent
-        extra         = dict(pending_extra_data)   # snapshot current accumulated data
+        extra         = dict(pending_extra_data)   
         saved_frame   = pending_frame
 
-        # Clear pending state BEFORE calling — module may set new pending
+        # Clear state temporarily; if still missing info, _save_pending will re-enable it
         pending_intent     = None
         pending_info_type  = None
         pending_extra_data = {}
@@ -121,8 +129,7 @@ def handle_interaction_logic(audio_bytes, frame=None, current_lang="en", is_awak
         result = process_command("", current_lang, saved_frame,
                                  extra_data=extra, force_intent=intent_to_run)
 
-        # Save new pending if module still needs more info
-        # Pass existing extra so it continues accumulating
+        # Check if the registration/navigation still needs more details
         _save_pending_if_needed(result, saved_frame, existing_extra=extra)
 
         ocr_guidance = (result["intent"] == "OCR" and
@@ -130,7 +137,7 @@ def handle_interaction_logic(audio_bytes, frame=None, current_lang="en", is_awak
         return (tts.speak_to_bytes(result["response"]),
                 result["intent"], result["needs_more_info"], ocr_guidance)
 
-    # ── NORMAL COMMAND ────────────────────────────────────────────────────────
+    # ── NORMAL COMMAND: No follow-up pending, just parse and execute ──────────
     intent, _ = parser.parse(user_text)
     result = process_command(user_text, current_lang, frame, intent_hint=intent)
     _save_pending_if_needed(result, frame)
@@ -141,29 +148,25 @@ def handle_interaction_logic(audio_bytes, frame=None, current_lang="en", is_awak
 
 
 def _save_pending_if_needed(result, frame, existing_extra=None):
-    """
-    Save follow-up state if module needs more info.
-    Uses result["updated_extra"] first (cleaned by process_command),
-    then falls back to existing_extra passed from caller.
-    """
+    # Save the conversation context if the AI needs the user to provide more info
     global pending_intent, pending_info_type, pending_extra_data, pending_frame
     if result["needs_more_info"]:
         pending_intent    = result["intent"]
         pending_info_type = result["info_type"]
-        # Prefer updated_extra from result (has bad data removed e.g. invalid phone)
-        # Fall back to existing_extra if updated_extra is empty
+        # Use existing data plus any valid new data found by the module
         updated = result.get("updated_extra", {})
         pending_extra_data = updated if updated else (dict(existing_extra) if existing_extra else {})
         pending_frame     = frame
         print(f"Waiting for follow-up: {pending_intent} needs '{pending_info_type}' | have so far: {list(pending_extra_data.keys())}")
 
 
-# ── process_command ────────────────────────────────────────────────────────────
+# ── process_command: This routes the intent to the correct Vision/Safety module ──
 def process_command(user_text, current_lang, frame=None,
                     extra_data=None, location=None,
                     force_intent=None, intent_hint=None):
     global obstacle_detection_enabled
 
+    # Determine what the user wants to do
     if force_intent:
         intent = force_intent
         target_lang = None
@@ -180,6 +183,7 @@ def process_command(user_text, current_lang, frame=None,
 
     obstacle_detection_enabled = False
 
+    # ── Switch Board: Routing based on "Intent" ──────────────────────────────
     if intent == "SWITCH_LANGUAGE":
         if target_lang:
             new_lang = target_lang
@@ -220,6 +224,7 @@ def process_command(user_text, current_lang, frame=None,
         response_text = modules.run_people_description(current_lang, frame)
 
     elif intent == "SCENE_DESCRIPTION":
+        # Fallback to local object detection if internet is down
         if check_internet():
             response_text = modules.run_realtime_scene_description(current_lang, frame)
         else:
@@ -243,25 +248,20 @@ def process_command(user_text, current_lang, frame=None,
 
     elif intent == "REGISTER_CONTACT":
         if extra_data and "name" in extra_data and "phone" in extra_data:
-            # Both collected — attempt registration
             result_msg = modules.run_phone_registration(
                 current_lang, extra_data["name"], extra_data["phone"])
             response_text = result_msg
 
-            # If phone was invalid, stay awake and ask again
+            # If phone validation fails, keep the name but ask for the phone again
             invalid_keywords = ["not valid", "చెల్లదు", "मान्य नहीं"]
             if any(kw in result_msg for kw in invalid_keywords):
-                # Keep name, clear phone — ask for phone again
                 needs_more_info  = True
                 info_needed_type = "phone"
-                # Remove bad phone from extra_data so _save_pending carries only name
                 extra_data.pop("phone", None)
         elif extra_data and "name" in extra_data:
-            # Have name, need phone
             response_text = "Got it. Now tell me the phone number."
             needs_more_info, info_needed_type = True, "phone"
         else:
-            # Need name first
             response_text = "Tell me the contact name."
             needs_more_info, info_needed_type = True, "name"
 
@@ -273,6 +273,7 @@ def process_command(user_text, current_lang, frame=None,
         }
         response_text = stop_msgs.get(current_lang, stop_msgs["en"])
 
+    # Resume background safety check after a command is handled
     obstacle_detection_enabled = True
 
     return {
@@ -281,5 +282,5 @@ def process_command(user_text, current_lang, frame=None,
         "intent":          intent,
         "needs_more_info": needs_more_info,
         "info_type":       info_needed_type,
-        "updated_extra":   extra_data or {},  # cleaned extra_data (bad phone removed etc.)
+        "updated_extra":   extra_data or {},
     }
