@@ -70,7 +70,7 @@ export default function HomeScreen() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ── Helpers ───────────────────────────────────────────────────────────────
+  // Helper functions to manage timer and sleep/awake states
 
   const clearAwakeTimer = () => {
     if (awakeTimerRef.current) {
@@ -79,17 +79,19 @@ export default function HomeScreen() {
     }
   };
 
+  // Restart the 10-second wake timer. If system is still processing, reschedule it
   const resetAwakeTimer = () => {
     clearAwakeTimer();
     awakeTimerRef.current = setTimeout(async () => {
       if (isProcessingRef.current) {
-        resetAwakeTimer(); // still processing — reschedule
+        resetAwakeTimer();
         return;
       }
       await goToSleep("10s inactivity timeout");
     }, AWAKE_TIMEOUT_MS);
   };
 
+  // Convert text to speech and play it
   const speakText = async (text: string, lang = 'en') => {
     try {
       const res = await fetch(`${BACKEND_URL}/tts`, {
@@ -104,6 +106,7 @@ export default function HomeScreen() {
     } catch (e) { console.log("speakText error:", e); }
   };
 
+  // Stop being awake - turn off timer and say goodbye
   const goToSleep = async (reason: string) => {
     if (!isAwakeRef.current) return;
     console.log(`Going to sleep — reason: ${reason}`);
@@ -114,7 +117,7 @@ export default function HomeScreen() {
     console.log("Obstacle detection resumed.");
   };
 
-  // ── Obstacle detection ────────────────────────────────────────────────────
+  // Check every few seconds for obstacles in front using camera
   const backgroundObstacleCheck = async () => {
     if (isSystemBusyRef.current || !cameraRef.current) return;
     try {
@@ -133,12 +136,7 @@ export default function HomeScreen() {
   };
 
 
-  // ── OCR guidance loop ─────────────────────────────────────────────────────
-  // Called automatically when backend says camera is not aligned.
-  // Keeps sending frames every 2.5s until:
-  //   - Camera is aligned → OCR runs → result spoken → goToSleep
-  //   - 30s total timeout → goToSleep
-  // The user NEVER needs to speak again — just adjust the camera.
+  // Keep checking if camera is aligned for text reading. Automatically retry every 2.5s for up to 30s
   const runOcrGuidanceLoop = async () => {
     const MAX_ATTEMPTS  = 12;  // 12 x 2.5s = 30s max
     const RETRY_DELAY_MS = 2500;
@@ -146,10 +144,10 @@ export default function HomeScreen() {
     for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
       console.log(`OCR guidance loop — attempt ${attempt + 1}/${MAX_ATTEMPTS}`);
 
-      // Wait for user to adjust camera
+      // Wait a bit then take a new photo
       await new Promise(r => setTimeout(r, RETRY_DELAY_MS));
 
-      // Take fresh photo
+      // Capture current camera frame
       let photoBase64: string | null = null;
       if (cameraRef.current) {
         try {
@@ -172,27 +170,27 @@ export default function HomeScreen() {
         const data = await res.json();
         console.log(`OCR loop result: guidance=${data.ocr_needs_guidance} | response=${data.response?.slice(0, 60)}`);
 
-        // Always play the audio (guidance or final result)
+        // Play the audio message
         if (data.audio) await playAudioFromB64(data.audio);
 
         if (!data.ocr_needs_guidance) {
-          // Camera is aligned and OCR is done — go to sleep
+          // Camera is good and text was read - done
           await goToSleep("OCR completed");
           return;
         }
-        // Still needs guidance — loop continues, user keeps adjusting
+        // Camera still not aligned - keep trying
 
       } catch (e) {
         console.log("OCR guidance loop error:", e);
       }
     }
 
-    // Timeout — user couldn't align camera in 30s
+    // Took too long - tell user and stop trying
     await speakText("Could not read the text. Please try again.");
     await goToSleep("OCR guidance timeout");
   };
 
-  // ── Voice loop ────────────────────────────────────────────────────────────
+  // Continuously record audio in 3.5 second chunks and send to backend for processing
   const runVoiceLoop = async () => {
     if (loopRunningRef.current) return;
     loopRunningRef.current = true;
@@ -213,7 +211,7 @@ export default function HomeScreen() {
     }
   };
 
-  // ── Send to backend ───────────────────────────────────────────────────────
+  // Send recorded audio and camera frame to backend for analysis
   const sendToBackend = async (uri: string, isAwake: boolean) => {
     if (isAwake) isProcessingRef.current = true;
     try {
@@ -233,13 +231,13 @@ export default function HomeScreen() {
         body: JSON.stringify({ audio: audioBase64, image: photoBase64, is_awake: isAwake }),
       });
 
-      if (res.status === 204) return; // IDLE — no speech
+      if (res.status === 204) return;
       if (!res.ok) { console.log("Backend error:", res.status); return; }
 
       const data = await res.json();
       console.log("Intent:", data.intent, "| needs_more_info:", data.needs_more_info, "| ocr_guidance:", data.ocr_needs_guidance);
 
-      // ── Wake word detected ──────────────────────────────────────────────
+      // User said wake word - switch from sleeping to awake mode
       if (data.intent === 'WAKE_WORD_DETECTED') {
         isAwakeRef.current      = true;
         isSystemBusyRef.current = true;
@@ -255,30 +253,25 @@ export default function HomeScreen() {
       if (data.audio) await playAudioFromB64(data.audio);
 
       if (data.intent === 'STOP') {
-        // User said stop
+        // User said stop command
         await goToSleep("user said STOP");
 
       } else if (data.ocr_needs_guidance) {
-        // OCR guidance: camera not aligned — automatically keep checking
-        // until aligned. User just adjusts the camera, no speech needed.
+        // Camera not aligned for text reading - keep auto-checking until aligned
         console.log("OCR guidance — starting auto frame loop...");
         await runOcrGuidanceLoop();
-        // runOcrGuidanceLoop handles sleep internally when done or timed out
 
       } else if (data.needs_more_info) {
-        // Follow-up question (e.g. "What is the person's name?")
-        // Timer already restarted inside playAudioFromB64 after audio finishes.
-        // Just log — no need to call resetAwakeTimer here.
+        // Backend is asking a follow-up question
         console.log("Follow-up question — user has fresh 10s after audio ends.");
 
       } else if (data.intent && data.intent !== 'UNKNOWN' && data.intent !== 'IDLE') {
-        // Command fully handled — go to sleep
+        // Command was processed successfully - go to sleep
         await goToSleep("command completed");
 
       }
-      // UNKNOWN — stay awake, let timer count down naturally
 
-      // Emergency GPS
+      // If user requested emergency - send their GPS location to backend
       if (data.intent === 'EMERGENCY_REQUESTED') {
         try {
           const loc = await Location.getCurrentPositionAsync({});
@@ -299,16 +292,13 @@ export default function HomeScreen() {
     }
   };
 
-  // ── Audio playback ────────────────────────────────────────────────────────
-  // IMPORTANT: timer is PAUSED for the entire duration of audio playback.
-  // The 10s window is purely for the user to speak — not for the system
-  // to play its response. Timer restarts only after audio fully finishes.
+  // Play audio response. Timer pauses while audio plays and restarts after it finishes
   const playAudioFromB64 = async (b64: string) => {
     const tmpPath = ((FileSystem as any).cacheDirectory as string) + 'vv_response.mp3';
     try {
       await FileSystem.writeAsStringAsync(tmpPath, b64, { encoding: 'base64' });
 
-      // Pause the awake timer while audio plays
+      // Stop timer while audio is playing
       clearAwakeTimer();
 
       await Audio.setAudioModeAsync({
@@ -344,7 +334,7 @@ export default function HomeScreen() {
         });
       } catch {}
       try { await FileSystem.deleteAsync(tmpPath, { idempotent: true }); } catch {}
-      // Restart timer AFTER audio finishes — user now has a full fresh 10s to speak
+      // Restart timer after audio finishes so user has a fresh 10 seconds to speak
       if (isAwakeRef.current) {
         resetAwakeTimer();
         console.log("Audio finished — fresh 10s timer started for user to speak.");
