@@ -105,6 +105,11 @@ def trigger_emergency():
 
 
 # ── OCR frame check (no audio needed — called after guidance) ─────────────────
+GUIDANCE_KEYWORDS = [
+    "move the camera", "closer to", "camera to the",
+    "tilt the camera", "bring the camera",
+]
+
 @app.route('/check_ocr', methods=['POST'])
 def check_ocr():
     try:
@@ -115,73 +120,34 @@ def check_ocr():
         if frame is None:
             return jsonify({"error": "No frame"}), 400
 
-        # Quick alignment check before running heavy OCR
-        from Module3.ocr import get_text_bounding_box
-        from backend_api.guidance import GuidanceSystem
+        # Single call — all logic lives in run_ocr_module, not here
+        import Module4.integrate_modules as modules
+        response_text = modules.run_ocr_module(lang, frame)
+        ocr_guidance  = any(kw in response_text.lower() for kw in GUIDANCE_KEYWORDS)
 
-        guidance_system = GuidanceSystem()
-        guidance_system.update_frame_dims(frame)
-        text_box  = get_text_bounding_box(frame)
-        guide_msg = guidance_system.get_guidance(text_box)
-
-        GUIDANCE_KEYWORDS = ["move the camera", "closer to", "camera to the",
-                             "tilt the camera", "bring the camera"]
-
-        if guide_msg != "OK":
-            # Camera not aligned yet — give guidance
-            audio_bytes = _tts.speak_to_bytes(guide_msg)
-            audio_b64   = base64.b64encode(audio_bytes).decode('utf-8') if audio_bytes else None
-            return jsonify({
-                "response":           guide_msg,
-                "audio":              audio_b64,
-                "ocr_needs_guidance": True,
-            })
-
-        # Frame aligned — tell user we are processing, then run OCR
-        scanning_msgs = {
-            "en": "Frame aligned. Scanning the text now, please hold steady.",
-            "te": "ఫ్రేమ్ సరిగ్గా ఉంది. టెక్స్ట్ స్కాన్ చేస్తున్నాను, అలాగే ఉండండి.",
-            "hi": "फ्रेम सही है। अभी टेक्स्ट स्कैन कर रहा हूँ, स्थिर रहें।",
-        }
-        scanning_msg   = scanning_msgs.get(lang, scanning_msgs["en"])
-        scanning_audio = _tts.speak_to_bytes(scanning_msg)
-
-        # Run full OCR
-        from Module3.ocr import run_ocr
-        text = run_ocr(frame)
-
-        if not text or text.strip() == "" or text == "I could not read any text.":
-            no_text = {
-                "en": "I could not read any text. Please try again.",
-                "te": "టెక్స్ట్ చదవలేకపోయాను. మళ్లీ ప్రయత్నించండి.",
-                "hi": "कोई टेक्स्ट नहीं पढ़ सका। कृपया पुनः प्रयास करें।",
-            }
-            response_text = no_text.get(lang, no_text["en"])
+        if ocr_guidance:
+            # Not aligned yet — speak the guidance instruction
+            audio_b64 = base64.b64encode(
+                _tts.speak_to_bytes(response_text)
+            ).decode('utf-8')
         else:
-            intros = {
-                "en": "The text reads: ",
-                "te": "టెక్స్ట్ ఇలా ఉంది: ",
-                "hi": "टेक्स्ट इस प्रकार है: ",
-            }
-            response_text = intros.get(lang, intros["en"]) + text
+            # Aligned and OCR done — prepend "hold steady" then read result
+            scanning = {
+                "en": "Frame aligned. Scanning now, please hold steady.",
+                "te": "ఫ్రేమ్ సరిగ్గా ఉంది. స్కాన్ చేస్తున్నాను, అలాగే ఉండండి.",
+                "hi": "फ्रेम सही है। स्कैन कर रहा हूँ, स्थिर रहें।",
+            }.get(lang, "Frame aligned. Scanning now, please hold steady.")
 
-        result_audio = _tts.speak_to_bytes(response_text)
-
-        # Combine scanning announcement + result into one audio response
-        # by concatenating the raw MP3 bytes
-        combined_audio = b""
-        if scanning_audio:
-            combined_audio += scanning_audio
-        if result_audio:
-            combined_audio += result_audio
-
-        audio_b64 = base64.b64encode(combined_audio).decode('utf-8') if combined_audio else None
+            combined  = (_tts.speak_to_bytes(scanning) or b"") + \
+                        (_tts.speak_to_bytes(response_text) or b"")
+            audio_b64 = base64.b64encode(combined).decode('utf-8')
 
         return jsonify({
             "response":           response_text,
             "audio":              audio_b64,
-            "ocr_needs_guidance": False,
+            "ocr_needs_guidance": ocr_guidance,
         })
+
     except Exception as e:
         print(f"check_ocr error: {e}")
         import traceback; traceback.print_exc()

@@ -104,4 +104,4 @@ def trigger_emergency(location=None):
     message = f"Emergency Alert!\n\nThe user needs assistance.\n\nLive Location:\n{maps_url}"
     
     send_sms(numbers, message)
-    return "Emergency alert sent to your caretakers."
+    return "Sucess"

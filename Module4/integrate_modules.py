@@ -1,6 +1,7 @@
 import time
 import sys
 import os
+import re
 
 # Making sure the system can see all my sub-folders (Module1, Module2, etc.)
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
@@ -14,10 +15,12 @@ from Module1.currency_recognition import detect_currency
 from Module2.people_detection import count_people, describe_person
 from Module2.face_detection import register_face, recognize_face
 
+from Module3.ocr import run_ocr, get_text_bounding_box
+from backend_api.guidance import GuidanceSystem
+
 from Module5.phone_register import register_contact
 from Module5.emergency import trigger_emergency
 
-from Module3.ocr import run_ocr
 
 # --- 1. SYSTEM INITIALIZATION ---
 print(" [System] 🚀 Assistive AI Hub: Multi-Module Integration Loaded (Mock Mode)")
@@ -174,7 +177,7 @@ def run_face_registration(lang, name, frame):
         print(f"Face registration error: {e}")
         return "Face registration failed. Please make sure your face is clearly visible."
 
-    if "successfully" in message:
+    if message == "Success":
         responses = {
             "en": f"{name} has been registered successfully.",
             "te": f"{name} విజయవంతంగా నమోదు చేయబడింది.",
@@ -191,9 +194,6 @@ def run_face_registration(lang, name, frame):
 def run_ocr_module(lang, frame):
     # Reading text from books, bills, or signs
     print("   [OCR] Running OCR on mobile frame...")
- 
-    from Module3.ocr import run_ocr, get_text_bounding_box
-    from backend_api.guidance import GuidanceSystem
  
     if frame is None:
         no_frame = {
@@ -233,42 +233,43 @@ def run_ocr_module(lang, frame):
     return intros.get(lang, intros["en"]) + text
 
 def run_phone_registration(lang, name, phone):
-    # Linking a name to a phone number for emergency SOS
     print("   [Safety] Registering emergency contact...")
- 
-    from Module5.phone_register import register_contact
-    import re
- 
-    # Cleaning up the input to ensure it's just numbers
-    digits_only = re.sub(r"\D", "", phone)
- 
-    if len(digits_only) != 10:
-        invalid = {
+
+    result = register_contact(name, phone)
+
+    if result == "Success":
+        import re
+        digits_only = re.sub(r"\D", "", phone)
+        return {
+            "en": f"Done! {name} has been saved as an emergency contact with number {digits_only}.",
+            "te": f"అయింది! {name} ని {digits_only} నంబర్ తో అత్యవసర సంప్రదింపుగా సేవ్ చేసాను.",
+            "hi": f"हो गया! {name} को {digits_only} नंबर के साथ आपातकालीन संपर्क के रूप में सहेजा गया।",
+        }.get(lang, f"Done! {name} has been saved as an emergency contact with number {digits_only}.")
+
+    else:
+        # register_contact returned "Invalid phone number."
+        return {
             "en": f"The phone number {phone} is not valid. It should be 10 digits. Please try again.",
             "te": f"ఫోన్ నంబర్ {phone} చెల్లదు. 10 అంకెలు ఉండాలి. మళ్లీ చెప్పండి.",
             "hi": f"फोन नंबर {phone} मान्य नहीं है। 10 अंक होने चाहिए। कृपया दोबारा बताएं।",
-        }
-        return invalid.get(lang, invalid["en"])
- 
-    result = register_contact(name, phone)
- 
-    success = {
-        "en": f"Done! {name} has been saved as an emergency contact with number {digits_only}.",
-        "te": f"అయింది! {name} ని {digits_only} నంబర్ తో అత్యవసర సంప్రదింపుగా సేవ్ చేసాను.",
-        "hi": f"हो गया! {name} को {digits_only} नंबर के साथ आपातकालीन संपर्क के रूप में सहेजा गया।",
-    }
-    return success.get(lang, success["en"])
+        }.get(lang, f"The phone number {phone} is not valid. It should be 10 digits. Please try again.")
 
-def run_safety_emergency(lang):
-    # The SOS trigger—contacts the caretakers immediately
+def run_safety_emergency(lang, location=None):
     print("   [Emergency] 🆘 Emergency command detected")
 
-    trigger_emergency()
+    result = trigger_emergency(location)
 
-    res = {
-        'en': "Emergency alert has been sent to your caretakers.",
-        'te': "మీ అత్యవసర సందేశం మీ కేర్‌టేకర్లకు పంపబడింది.",
-        'hi': "आपातकालीन संदेश आपके संपर्कों को भेज दिया गया है।"
-    }
+    if result == "Sucess":  # matches the exact string returned by emergency.py
+        return {
+            "en": "Emergency alert has been sent to your caretakers.",
+            "te": "మీ అత్యవసర సందేశం మీ కేర్‌టేకర్లకు పంపబడింది.",
+            "hi": "आपातकालीन संदेश आपके संपर्कों को भेज दिया गया है।",
+        }.get(lang, "Emergency alert has been sent to your caretakers.")
 
-    return get_lang_msg(res, lang)
+    else:
+        # trigger_emergency returned "No caretaker contacts registered."
+        return {
+            "en": "No emergency contacts found. Please register a caretaker contact first.",
+            "te": "అత్యవసర సంప్రదింపులు కనుగొనబడలేదు. ముందు కేర్‌టేకర్ నంబర్ నమోదు చేయండి.",
+            "hi": "कोई आपातकालीन संपर्क नहीं मिला। पहले एक केयरटेकर नंबर दर्ज करें।",
+        }.get(lang, "No emergency contacts found. Please register a caretaker contact first.")

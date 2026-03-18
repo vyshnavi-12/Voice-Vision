@@ -60,7 +60,7 @@ def register_contact(name, phone, contact_type="caretaker"):
 
     save_contacts(contacts)
 
-    return f"{name} has been registered as an emergency contact."
+    return "Success"
 
 
 # ---------- LIST CONTACTS ----------
